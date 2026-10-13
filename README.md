@@ -9,7 +9,7 @@ An authenticated, deterministic, and leak-free micro-cloud control plane managin
 ## 📺 Team Introduction & Orientation Video
 Watch our introductory walkthrough explaining our team roles, problem breakdown, and proposed system architecture:
 
-- **YouTube Link:** https://www.youtube.com/watch?v=
+- **YouTube Link:** https://www.youtube.com/watch?v=O-e3twW4i9E
 
 ---
 
