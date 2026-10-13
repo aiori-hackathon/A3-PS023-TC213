@@ -9,7 +9,7 @@ An authenticated, deterministic, and leak-free micro-cloud control plane managin
 ## 📺 Team Introduction & Orientation Video
 Watch our introductory walkthrough explaining our team roles, problem breakdown, and proposed system architecture:
 
-- **YouTube Link:** https://www.youtube.com/watch?v=YOUR_VIDEO_ID
+- **YouTube Link:** https://www.youtube.com/watch?v=
 
 ---
 
@@ -17,14 +17,14 @@ Watch our introductory walkthrough explaining our team roles, problem breakdown,
 
 | Name | Role | Responsibilities / Work Areas |
 | :--- | :--- | :--- |
-| **[Your Name]** | Team Lead & Systems Engineer | • Linux KVM (`/dev/kvm`) and Cloud Hypervisor binary management.<br>• IPC over Cloud Hypervisor REST API via Unix domain sockets.<br>• Controller placement algorithm and host OS memory reservations.<br>• Lifecycle state machine transitions (`CREATING` → `CREATED` → `RUNNING` → `STOPPED` → `DELETED`). |
-| **[Teammate's Name]** | Reliability, Security & QA Engineer | • Process containment using Linux cgroups v2 (`MemoryMax`, `CPUQuota`).<br>• Self-healing background Reconciler for cleaning orphan PIDs, taps, and sockets.<br>• Bearer token authentication and controller-to-worker secure channels.<br>• Failure injection testing and automated `leak_check.sh` verification. |
-| **[Faculty Advisor Name]** | Faculty Mentor | • Project oversight, RFC alignment, and academic advisory. |
+| **Soham Chakraborti** | Team Lead & Systems Engineer | • Linux KVM (`/dev/kvm`) and Cloud Hypervisor binary management.<br>• IPC over Cloud Hypervisor REST API via Unix domain sockets.<br>• Controller placement algorithm and host OS memory reservations.<br>• Lifecycle state machine transitions (`CREATING` → `CREATED` → `RUNNING` → `STOPPED` → `DELETED`). |
+| **Ishita Roy** | Reliability, Security & QA Engineer | • Process containment using Linux cgroups v2 (`MemoryMax`, `CPUQuota`).<br>• Self-healing background Reconciler for cleaning orphan PIDs, taps, and sockets.<br>• Bearer token authentication and controller-to-worker secure channels.<br>• Failure injection testing and automated `leak_check.sh` verification. |
+| **Sayani Manna** | Faculty Mentor | • Project oversight, RFC alignment, and academic advisory. |
 
 ---
 
 ## 📄 Orientation Slide Deck
 The 11-slide presentation adhering to the official AIORI template is included in this repository:
-- **Presentation Path:** /
+- **Presentation Path:** /A3-PS023-TC213_AIORI3_Presentation.pdf
 
 ---
