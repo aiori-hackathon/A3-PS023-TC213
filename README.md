@@ -31,20 +31,23 @@ The 11-slide presentation adhering to the official AIORI template is included in
 
 ## System Architecture
 
-[Central Controller] (FastAPI / SQLite State Machine | Port: 8000)
- │
- ├── RPC (Placement & Health Telemetry) ──> [Worker Daemon 1] (Port: 8001)
- │                                            │
- │                                            └── UDS REST (/tmp/ch_sockets/*.sock)
- │                                                 └── [Cloud Hypervisor VM Instance A]
- │
- └── RPC (Placement & Health Telemetry) ──> [Worker Daemon 2] (Port: 8002)
-                                              │
-                                              └── UDS REST (/tmp/ch_sockets/*.sock)
-                                                   └── [Cloud Hypervisor VM Instance B]
+* **Central Controller (Port: 8000)**
+  * Manages global VM placement and cluster metadata state via SQLite.
+  * Continuously evaluates compute node health and memory headroom.
+  * Routes provisioning actions directly to the chosen worker node over HTTP RPC.
+
+* **Worker Node 1 (Port: 8001)**
+  * Emits continuous telemetry heartbeats (total and free RAM) to the Central Controller.
+  * Manages dedicated Cloud Hypervisor instances via Unix Domain Sockets (`/tmp/ch_sockets/`).
+  * Enforces process lifecycle execution (`create`, `boot`, `shutdown`, `destroy`).
+
+* **Worker Node 2 (Port: 8002)**
+  * Operates symmetrically with Worker Node 1 across an independent host environment.
+  * Hosts guest virtual machines scheduled based on real-time memory availability.
+  * Provides complete fault and execution isolation for provisioned workloads.
 
 ### Core Design Highlights
-1. **Direct Unix Domain Socket Control:** Eliminates shell injection vulnerabilities; all commands interact with Cloud Hypervisor's native REST API (/api/v1/vm.create, /api/v1/vm.boot, /api/v1/vm.shutdown, /api/v1/vmm.shutdown) via raw HTTP-over-UDS transport.
+1. **Direct Unix Domain Socket Control:** Eliminates shell injection vulnerabilities; all commands interact with Cloud Hypervisor's native REST API (`/api/v1/vm.create`, `/api/v1/vm.boot`, `/api/v1/vm.shutdown`, `/api/v1/vmm.shutdown`) via raw HTTP-over-UDS transport.
 2. **512 MB OS Memory Reservation:** The placement engine strictly preserves a baseline 512 MB memory cushion on each node to ensure host operating system stability and kernel health.
 3. **Dynamic Scheduling & Telemetry:** Worker heartbeats track real-time host RAM capacity; provisioning requests are placed onto the node with optimal headroom.
 4. **Concurrency Safety:** Controller placement calculations are protected by an asynchronous lock to prevent overcommit race conditions.
