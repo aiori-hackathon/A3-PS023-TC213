@@ -31,35 +31,26 @@ The 11-slide presentation adhering to the official AIORI template is included in
 
 ## System Architecture
 
-                       +----------------------------------------+
-                       |       Central Controller Service       |
-                       |   (FastAPI / SQLite State Machine)     |
-                       |             Port: 8000                 |
-                       +-------------------+--------------------+
-                                           |
-            +------------------------------+------------------------------+
-            | Placement & Health RPC                                      | Placement & Health RPC
-            v                                                             v
-+-------------------------------+                           +-------------------------------+
-|     Worker Daemon (Node 1)    |                           |     Worker Daemon (Node 2)    |
-|           Port: 8001          |                           |           Port: 8002          |
-+---------------+---------------+                           +---------------+---------------+
-                | UDS REST (/tmp/ch_sockets/*.sock)                         | UDS REST (/tmp/ch_sockets/*.sock)
-                v                                                           v
-+-------------------------------+                           +-------------------------------+
-|    Cloud Hypervisor Process   |                           |    Cloud Hypervisor Process   |
-|        (VM Instance A)        |                           |        (VM Instance B)        |
-+-------------------------------+                           +-------------------------------+
+[Central Controller] (FastAPI / SQLite State Machine | Port: 8000)
+ │
+ ├── RPC (Placement & Health Telemetry) ──> [Worker Daemon 1] (Port: 8001)
+ │                                            │
+ │                                            └── UDS REST (/tmp/ch_sockets/*.sock)
+ │                                                 └── [Cloud Hypervisor VM Instance A]
+ │
+ └── RPC (Placement & Health Telemetry) ──> [Worker Daemon 2] (Port: 8002)
+                                              │
+                                              └── UDS REST (/tmp/ch_sockets/*.sock)
+                                                   └── [Cloud Hypervisor VM Instance B]
 
 ### Core Design Highlights
-1. Direct Unix Domain Socket Control: Eliminates shell injection vulnerabilities; all commands interact with Cloud Hypervisor's native REST API (/api/v1/vm.create, /api/v1/vm.boot, /api/v1/vm.shutdown, /api/v1/vmm.shutdown) via raw HTTP-over-UDS transport.
-2. 512 MB OS Memory Reservation: The placement engine strictly preserves a baseline 512 MB memory cushion on each node to ensure host operating system stability and kernel health.
-3. Dynamic Scheduling & Telemetry: Worker heartbeats track real-time host RAM capacity; provisioning requests are placed onto the node with optimal headroom.
-4. Concurrency Safety: Controller placement calculations are protected by an asynchronous lock to prevent overcommit race conditions.
-5. Local Verification & Multi-Environment Ready: Designed with high-fidelity mock fallbacks for rapid local automated testing while fully functional on dual bare-metal/cloud KVM hosts.
+1. **Direct Unix Domain Socket Control:** Eliminates shell injection vulnerabilities; all commands interact with Cloud Hypervisor's native REST API (/api/v1/vm.create, /api/v1/vm.boot, /api/v1/vm.shutdown, /api/v1/vmm.shutdown) via raw HTTP-over-UDS transport.
+2. **512 MB OS Memory Reservation:** The placement engine strictly preserves a baseline 512 MB memory cushion on each node to ensure host operating system stability and kernel health.
+3. **Dynamic Scheduling & Telemetry:** Worker heartbeats track real-time host RAM capacity; provisioning requests are placed onto the node with optimal headroom.
+4. **Concurrency Safety:** Controller placement calculations are protected by an asynchronous lock to prevent overcommit race conditions.
+5. **Local Verification & Multi-Environment Ready:** Designed with high-fidelity mock fallbacks for rapid local automated testing while fully functional on dual bare-metal/cloud KVM hosts.
 
 ---
-
 ## Repository Structure
 
 - controller/: Central scheduling engine, FastAPI endpoints, Pydantic schemas, and SQLite state store.
