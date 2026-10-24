@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.sock
+*.raw
+*.qcow2
+/instances/
+/sockets/
+.pytest_cache/
