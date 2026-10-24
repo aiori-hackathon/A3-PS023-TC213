@@ -44,6 +44,7 @@ class MetadataStore:
             conn.commit()
 
     def upsert_node(self, hb: NodeHeartbeat) -> None:
+        self._init_db()  # Ensures tables exist even if the db file was recreated
         now = datetime.now(timezone.utc).isoformat()
         with self._get_conn() as conn:
             conn.execute("""
@@ -60,6 +61,7 @@ class MetadataStore:
             conn.commit()
 
     def list_nodes(self) -> List[NodeRecord]:
+        self._init_db()
         with self._get_conn() as conn:
             rows = conn.execute("SELECT * FROM nodes WHERE is_active = 1").fetchall()
             return [
@@ -76,6 +78,7 @@ class MetadataStore:
             ]
 
     def insert_vm(self, vm: VMRecord) -> None:
+        self._init_db()
         with self._get_conn() as conn:
             conn.execute("""
                 INSERT INTO vms (vm_id, name, vcpus, memory_mb, node_id, status, created_at, updated_at)
@@ -93,6 +96,7 @@ class MetadataStore:
             conn.commit()
 
     def update_vm_status(self, vm_id: str, status: str, node_id: Optional[str] = None) -> None:
+        self._init_db()
         now = datetime.now(timezone.utc).isoformat()
         with self._get_conn() as conn:
             if node_id:
@@ -108,6 +112,7 @@ class MetadataStore:
             conn.commit()
 
     def get_vm(self, vm_id: str) -> Optional[VMRecord]:
+        self._init_db()
         with self._get_conn() as conn:
             row = conn.execute("SELECT * FROM vms WHERE vm_id = ?", (vm_id,)).fetchone()
             if not row:
