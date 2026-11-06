@@ -39,21 +39,33 @@ async def heartbeat_worker():
     while True:
         try:
             mem = psutil.virtual_memory()
-            total_ram_mb = int(mem.total / (1024 * 1024))
-            free_ram_mb = int(mem.available / (1024 * 1024))
+            total_ram = int(mem.total / (1024 * 1024))
+            base_free_ram = int(mem.available / (1024 * 1024))
+
+            # Retrieve memory_mb from the nested "config" dict
+            committed_vm_ram = sum(
+                int(vm.get("config", {}).get("memory_mb", 0))
+                for vm in ACTIVE_VMS.values()
+                if vm.get("status") == "RUNNING"
+            )
+
+            effective_free_ram = max(0, base_free_ram - committed_vm_ram)
 
             payload = {
                 "node_id": NODE_ID,
-                "host": os.getenv("NODE_HOST", "127.0.0.1"),
-                "port": int(os.getenv("NODE_PORT", 8001)),
-                "total_ram_mb": total_ram_mb,
-                "free_ram_mb": free_ram_mb,
+                "host": "127.0.0.1",
+                "port": int(os.getenv("NODE_PORT", os.getenv("PORT", 8001))),
+                "total_ram_mb": total_ram,
+                "free_ram_mb": effective_free_ram,
             }
 
             async with httpx.AsyncClient(timeout=3.0) as client:
-                await client.post(f"{CONTROLLER_URL}/api/v1/nodes/heartbeat", json=payload)
+                await client.post(
+                    f"{CONTROLLER_URL}/api/v1/nodes/heartbeat", json=payload
+                )
+
         except Exception as e:
-            logger.debug(f"Heartbeat failed: {e}")
+            logging.error(f"Heartbeat failed: {e}")
 
         await asyncio.sleep(5)
 

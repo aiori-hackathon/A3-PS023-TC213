@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, status
 import httpx
+from pathlib import Path
+from fastapi.responses import HTMLResponse
 
 from controller.models import (
     NodeHeartbeat,
@@ -137,3 +139,12 @@ async def list_vms():
                 for r in rows
             ]
 
+@app.get("/dashboard", response_class=HTMLResponse)
+async def get_dashboard():
+    template_path = Path(__file__).parent / "templates" / "dashboard.html"
+    if not template_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dashboard template file not found.",
+        )
+    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))

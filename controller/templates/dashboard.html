@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Cloud Hypervisor Orchestrator | Cluster Operations Console</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      --bg-canvas: #090d16;
+      --bg-panel: #111827;
+      --bg-subtle: #1f2937;
+      --border-color: #374151;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --status-running: #10b981;
+      --status-warn: #f59e0b;
+      --status-halt: #6b7280;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.4;
+      padding: 16px;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+    .header-title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-main);
+    }
+    .header-meta {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .main-grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 16px;
+    }
+    .panel {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+    }
+    .panel-header {
+      background-color: var(--bg-subtle);
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-body {
+      padding: 12px;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      font-family: var(--font-mono);
+    }
+    .form-control {
+      width: 100%;
+      background-color: #0b1120;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .form-control:focus {
+      outline: 1px solid var(--accent);
+      border-color: var(--accent);
+    }
+    .btn {
+      background-color: var(--accent);
+      color: #ffffff;
+      border: 1px solid #1d4ed8;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+    }
+    .btn:hover {
+      background-color: var(--accent-hover);
+    }
+    .btn-danger {
+      background-color: #991b1b;
+      border-color: #7f1d1d;
+      color: #fef2f2;
+      padding: 3px 8px;
+      font-size: 11px;
+      width: auto;
+    }
+    .btn-danger:hover {
+      background-color: #b91c1c;
+    }
+    .node-block {
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-subtle);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .node-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .meter-container {
+      background-color: #0b1120;
+      border: 1px solid var(--border-color);
+      height: 14px;
+      width: 100%;
+      margin: 8px 0;
+      position: relative;
+    }
+    .meter-bar {
+      background-color: #2563eb;
+      height: 100%;
+      transition: width 0.4s ease;
+    }
+    .node-stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-top: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    th {
+      background-color: var(--bg-subtle);
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    td {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-running {
+      background-color: #064e3b;
+      color: #a7f3d0;
+      border: 1px solid #047857;
+    }
+    .badge-terminated {
+      background-color: #1f2937;
+      color: #9ca3af;
+      border: 1px solid #374151;
+    }
+    .badge-node {
+      background-color: #1e1b4b;
+      color: #c7d2fe;
+      border: 1px solid #3730a3;
+    }
+    .log-line {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <div class="header-title">CH-Cluster Control Plane // Node &amp; VM Inventory</div>
+    <div class="header-meta">Scheduler Policy: 512MB Host Reserve | API Endpoint: :8000</div>
+  </div>
+
+  <div class="main-grid">
+    <!-- Left Column: Node Telemetry & Provisioning -->
+    <div>
+      <div class="panel" style="margin-bottom: 16px;">
+        <div class="panel-header">Cluster Node Registry</div>
+        <div class="panel-body" id="node-container">
+          <div class="log-line">Polling active nodes...</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Provision Instance Request</div>
+        <div class="panel-body">
+          <form id="provision-form" onsubmit="handleProvision(event)">
+            <div class="form-group">
+              <label for="vm-name">Instance Name</label>
+              <input type="text" id="vm-name" class="form-control" value="guest-prod-04" required>
+            </div>
+            <div class="form-group">
+              <label for="vm-vcpus">Allocated vCPUs</label>
+              <input type="number" id="vm-vcpus" class="form-control" value="1" min="1" max="16" required>
+            </div>
+            <div class="form-group">
+              <label for="vm-ram">Allocated Memory (MB)</label>
+              <input type="number" id="vm-ram" class="form-control" value="1024" min="128" step="128" required>
+            </div>
+            <button type="submit" class="btn" id="btn-submit">Dispatch to Scheduler</button>
+          </form>
+          <div id="action-status" class="log-line"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: MicroVMs Inventory Table -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Active &amp; Tracked MicroVM Instances</span>
+        <span id="vm-counter" style="color: var(--text-muted);">0 total</span>
+      </div>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>VM ID</th>
+              <th>Name</th>
+              <th>Node Placement</th>
+              <th>vCPUs</th>
+              <th>RAM</th>
+              <th>State</th>
+              <th>Operations</th>
+            </tr>
+          </thead>
+          <tbody id="vm-table-body">
+            <tr>
+              <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 24px;">
+                No microVM instances currently provisioned in cluster store.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function fetchClusterData() {
+      try {
+        const [nodesRes, vmsRes] = await Promise.all([
+          fetch('/api/v1/nodes'),
+          fetch('/api/v1/vms')
+        ]);
+
+        let nodes = [];
+        let vms = [];
+
+        if (nodesRes.ok) nodes = await nodesRes.json();
+        if (vmsRes.ok) vms = await vmsRes.json();
+
+        renderNodes(nodes, vms);
+        renderVMs(vms);
+      } catch (err) {
+        console.error('Cluster polling error:', err);
+      }
+    }
+
+    function renderNodes(nodes, vms) {
+      const container = document.getElementById('node-container');
+      if (!nodes || nodes.length === 0) {
+        container.innerHTML = '<div class="log-line">No worker nodes currently registered via heartbeat.</div>';
+        return;
+      }
+
+      nodes.sort((a, b) => a.node_id.localeCompare(b.node_id));
+      
+      container.innerHTML = nodes.map(n => {
+        // Find all RUNNING VMs assigned to this specific node
+        const nodeVMs = vms.filter(v => v.node_id === n.node_id && v.status === 'RUNNING');
+        const committedVMRAM = nodeVMs.reduce((acc, v) => acc + (v.memory_mb || 0), 0);
+        const activeCount = nodeVMs.length;
+
+        // Base allocatable capacity per node (4096 MB allocation pool)
+        const nodeCapacity = 4096;
+        const hostReserve = 512;
+        const maxAllocatable = nodeCapacity - hostReserve;
+        
+        // Calculate dynamic percentage and headroom
+        const pctUsed = Math.min(100, Math.round((committedVMRAM / maxAllocatable) * 100));
+        const headroom = Math.max(0, maxAllocatable - committedVMRAM);
+
+        return `
+          <div class="node-block">
+            <div class="node-title">
+              <span>${n.node_id} (${n.host}:${n.port})</span>
+              <span style="color: var(--status-running); font-weight: normal;">ONLINE (${activeCount} active VM${activeCount === 1 ? '' : 's'})</span>
+            </div>
+            <div class="meter-container">
+              <div class="meter-bar" style="width: ${pctUsed}%;"></div>
+            </div>
+            <div class="node-stat-row">
+              <span>Committed: ${committedVMRAM} / ${maxAllocatable} MB (${pctUsed}%)</span>
+              <span>Headroom: ${headroom} MB</span>
+            </div>
+            <div class="node-stat-row" style="color: #64748b; font-size: 10px; margin-top: 2px;">
+              <span>Host Reserve: ${hostReserve} MB</span>
+              <span>Pool Cap: ${nodeCapacity} MB</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderVMs(vms) {
+      const tbody = document.getElementById('vm-table-body');
+      const counter = document.getElementById('vm-counter');
+      counter.textContent = `${vms.length} tracked`;
+
+      if (!vms || vms.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 24px;">
+              No microVM instances currently provisioned in cluster store.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = vms.map(vm => {
+        const isRunning = vm.status === 'RUNNING';
+        const badgeClass = isRunning ? 'badge-running' : 'badge-terminated';
+        const actionHtml = isRunning 
+          ? `<button class="btn btn-danger" onclick="terminateVM('${vm.vm_id}')">Terminate</button>`
+          : `<span style="color: var(--text-muted);">None</span>`;
+
+        return `
+          <tr>
+            <td><strong>${vm.vm_id}</strong></td>
+            <td>${vm.name}</td>
+            <td><span class="badge badge-node">${vm.node_id || 'unassigned'}</span></td>
+            <td>${vm.vcpus}</td>
+            <td>${vm.memory_mb} MB</td>
+            <td><span class="badge ${badgeClass}">${vm.status}</span></td>
+            <td>${actionHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function handleProvision(e) {
+      e.preventDefault();
+      const statusDiv = document.getElementById('action-status');
+      const submitBtn = document.getElementById('btn-submit');
+
+      const payload = {
+        name: document.getElementById('vm-name').value,
+        vcpus: parseInt(document.getElementById('vm-vcpus').value, 10),
+        memory_mb: parseInt(document.getElementById('vm-ram').value, 10)
+      };
+
+      submitBtn.disabled = true;
+      statusDiv.textContent = 'Submitting placement request to scheduler...';
+
+      try {
+        const res = await fetch('/api/v1/vms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.status === 201) {
+          const data = await res.json();
+          statusDiv.textContent = `Allocated ${data.vm_id} onto ${data.node_id}.`;
+          fetchClusterData();
+        } else {
+          const err = await res.json();
+          statusDiv.textContent = `Placement failed: ${err.detail || res.statusText}`;
+        }
+      } catch (err) {
+        statusDiv.textContent = `Dispatch error: ${err.message}`;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    async function terminateVM(vmId) {
+      if (!confirm(`Confirm teardown of microVM instance ${vmId}?`)) return;
+      try {
+        const res = await fetch(`/api/v1/vms/${vmId}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchClusterData();
+        } else {
+          const err = await res.json();
+          alert(`Termination failed: ${err.detail || res.statusText}`);
+        }
+      } catch (err) {
+        alert(`Teardown network error: ${err.message}`);
+      }
+    }
+
+    // Initial load and 3-second live refresh cycle
+    fetchClusterData();
+    setInterval(fetchClusterData, 3000);
+  </script>
+</body>
+</html>
