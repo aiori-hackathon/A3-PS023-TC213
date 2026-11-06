@@ -111,3 +111,29 @@ async def delete_vm(vm_id: str):
 
     store.update_vm_status(vm_id, "TERMINATED")
     return {"vm_id": vm_id, "status": "TERMINATED"}
+
+@app.get("/api/v1/vms")
+async def list_vms():
+    """Returns all tracked microVMs from the metadata store."""
+    if hasattr(store, "list_vms"):
+        return store.list_vms()
+    elif hasattr(store, "get_all_vms"):
+        return store.get_all_vms()
+    else:
+        # Direct fallback query if helper method is absent
+        with store._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT vm_id, name, node_id, status, vcpus, memory_mb FROM vms")
+            rows = cursor.fetchall()
+            return [
+                {
+                    "vm_id": r[0],
+                    "name": r[1],
+                    "node_id": r[2],
+                    "status": r[3],
+                    "vcpus": r[4],
+                    "memory_mb": r[5],
+                }
+                for r in rows
+            ]
+
