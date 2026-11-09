@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import psutil
 import httpx
 
+from worker.capabilities import probe_node_capabilities
 from worker.ch_client import CloudHypervisorClient
 
 logger = logging.getLogger("worker_agent")
@@ -51,12 +52,15 @@ async def heartbeat_worker():
 
             effective_free_ram = max(0, base_free_ram - committed_vm_ram)
 
+            caps = probe_node_capabilities()
             payload = {
                 "node_id": NODE_ID,
                 "host": "127.0.0.1",
                 "port": int(os.getenv("NODE_PORT", os.getenv("PORT", 8001))),
                 "total_ram_mb": total_ram,
                 "free_ram_mb": effective_free_ram,
+                "kvm_capable": caps["kvm_capable"],
+                "runtime_driver": caps["runtime_driver"],
             }
 
             async with httpx.AsyncClient(timeout=3.0) as client:

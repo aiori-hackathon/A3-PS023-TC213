@@ -1,28 +1,32 @@
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from typing import Optional
+from pydantic import BaseModel
 
 class NodeHeartbeat(BaseModel):
     node_id: str
-    host: str
+    host: str = "127.0.0.1"
     port: int = 8001
     total_ram_mb: int
     free_ram_mb: int
+    kvm_capable: Optional[bool] = False
+    runtime_driver: Optional[str] = "mock_sandbox"
 
 class NodeRecord(BaseModel):
     node_id: str
-    host: str
-    port: int
+    host: str = "127.0.0.1"
+    port: int = 8001
     total_ram_mb: int
     free_ram_mb: int
     last_heartbeat: datetime
     is_active: bool = True
+    kvm_capable: bool = False
+    runtime_driver: str = "mock_sandbox"
 
 class VMCreateRequest(BaseModel):
     name: str
-    vcpus: int = Field(default=1, ge=1, le=16)
-    memory_mb: int = Field(default=512, ge=128)
-    kernel_path: Optional[str] = "/var/lib/cloud-hypervisor/vmlinux"
+    vcpus: int
+    memory_mb: int
+    kernel_path: Optional[str] = None
     disk_path: Optional[str] = None
 
 class VMRecord(BaseModel):
@@ -31,6 +35,6 @@ class VMRecord(BaseModel):
     vcpus: int
     memory_mb: int
     node_id: Optional[str] = None
-    status: str = "PENDING"  # PENDING, RUNNING, STOPPED, FAILED
+    status: str
     created_at: datetime
     updated_at: datetime

@@ -25,9 +25,21 @@ class MetadataStore:
                     total_ram_mb INTEGER NOT NULL,
                     free_ram_mb INTEGER NOT NULL,
                     last_heartbeat TEXT NOT NULL,
-                    is_active INTEGER NOT NULL DEFAULT 1
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    kvm_capable INTEGER DEFAULT 0,
+                    runtime_driver TEXT DEFAULT 'mock_sandbox'
                 )
             """)
+            # Safe schema migration for pre-existing databases
+            for col, col_type in [
+                ("kvm_capable", "INTEGER DEFAULT 0"),
+                ("runtime_driver", "TEXT DEFAULT 'mock_sandbox'")
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE nodes ADD COLUMN {col} {col_type}")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS vms (
                     vm_id TEXT PRIMARY KEY,
@@ -46,24 +58,29 @@ class MetadataStore:
     def upsert_node(self, hb: NodeHeartbeat) -> None:
         self._init_db()  # Ensures tables exist even if the db file was recreated
         now = datetime.now(timezone.utc).isoformat()
+        kvm_cap = 1 if getattr(hb, "kvm_capable", False) else 0
+        driver = getattr(hb, "runtime_driver", "mock_sandbox") or "mock_sandbox"
+
         with self._get_conn() as conn:
             conn.execute("""
-                INSERT INTO nodes (node_id, host, port, total_ram_mb, free_ram_mb, last_heartbeat, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
+                INSERT INTO nodes (node_id, host, port, total_ram_mb, free_ram_mb, last_heartbeat, is_active, kvm_capable, runtime_driver)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
                 ON CONFLICT(node_id) DO UPDATE SET
                     host=excluded.host,
                     port=excluded.port,
                     total_ram_mb=excluded.total_ram_mb,
                     free_ram_mb=excluded.free_ram_mb,
                     last_heartbeat=excluded.last_heartbeat,
-                    is_active=1
-            """, (hb.node_id, hb.host, hb.port, hb.total_ram_mb, hb.free_ram_mb, now))
+                    is_active=1,
+                    kvm_capable=excluded.kvm_capable,
+                    runtime_driver=excluded.runtime_driver
+            """, (hb.node_id, hb.host, hb.port, hb.total_ram_mb, hb.free_ram_mb, now, kvm_cap, driver))
             conn.commit()
 
     def list_nodes(self) -> List[NodeRecord]:
         self._init_db()
         with self._get_conn() as conn:
-            rows = conn.execute("SELECT * FROM nodes WHERE is_active = 1").fetchall()
+            rows = conn.execute("SELECT * FROM nodes WHERE is_active = 1 ORDER BY node_id ASC").fetchall()
             return [
                 NodeRecord(
                     node_id=row["node_id"],
@@ -72,7 +89,9 @@ class MetadataStore:
                     total_ram_mb=row["total_ram_mb"],
                     free_ram_mb=row["free_ram_mb"],
                     last_heartbeat=datetime.fromisoformat(row["last_heartbeat"]),
-                    is_active=bool(row["is_active"])
+                    is_active=bool(row["is_active"]) if "is_active" in row.keys() else True,
+                    kvm_capable=bool(row["kvm_capable"]) if "kvm_capable" in row.keys() else False,
+                    runtime_driver=row["runtime_driver"] if "runtime_driver" in row.keys() else "mock_sandbox"
                 )
                 for row in rows
             ]

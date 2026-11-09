@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, status
-import httpx
 from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import HTMLResponse
+import httpx
 
 from controller.models import (
     NodeHeartbeat,
@@ -122,7 +123,6 @@ async def list_vms():
     elif hasattr(store, "get_all_vms"):
         return store.get_all_vms()
     else:
-        # Direct fallback query if helper method is absent
         with store._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT vm_id, name, node_id, status, vcpus, memory_mb FROM vms")

@@ -11,18 +11,20 @@
       padding: 0;
     }
     :root {
-      --bg-canvas: #090d16;
+      --bg-canvas: #0b0f19;
       --bg-panel: #111827;
-      --bg-subtle: #1f2937;
-      --border-color: #374151;
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --status-running: #10b981;
-      --status-warn: #f59e0b;
-      --status-halt: #6b7280;
-      --accent: #2563eb;
+      --bg-surface: #1e293b;
+      --bg-input: #0f172a;
+      --border-subtle: #334155;
+      --border-strong: #475569;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --status-online: #10b981;
+      --status-bg: #064e3b;
+      --status-border: #059669;
+      --accent-blue: #2563eb;
       --accent-hover: #1d4ed8;
-      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     body {
@@ -30,19 +32,19 @@
       color: var(--text-main);
       font-family: var(--font-sans);
       font-size: 13px;
-      line-height: 1.4;
-      padding: 16px;
+      line-height: 1.5;
+      padding: 24px;
     }
     .header-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 12px;
-      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 14px;
+      margin-bottom: 24px;
     }
     .header-title {
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 600;
       letter-spacing: 0.5px;
       text-transform: uppercase;
@@ -55,17 +57,18 @@
     }
     .main-grid {
       display: grid;
-      grid-template-columns: 380px 1fr;
-      gap: 16px;
+      grid-template-columns: 440px 1fr;
+      gap: 24px;
     }
     .panel {
       background-color: var(--bg-panel);
-      border: 1px solid var(--border-color);
+      border: 1px solid var(--border-subtle);
+      border-radius: 2px;
     }
     .panel-header {
-      background-color: var(--bg-subtle);
-      border-bottom: 1px solid var(--border-color);
-      padding: 8px 12px;
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 10px 14px;
       font-weight: 600;
       font-size: 12px;
       text-transform: uppercase;
@@ -75,81 +78,140 @@
       align-items: center;
     }
     .panel-body {
-      padding: 12px;
+      padding: 16px;
     }
     .form-group {
-      margin-bottom: 10px;
+      margin-bottom: 14px;
     }
     .form-group label {
       display: block;
       font-size: 11px;
+      font-weight: 500;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       font-family: var(--font-mono);
     }
     .form-control {
       width: 100%;
-      background-color: #0b1120;
-      border: 1px solid var(--border-color);
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-subtle);
       color: var(--text-main);
-      padding: 6px 8px;
+      padding: 8px 10px;
       font-family: var(--font-mono);
       font-size: 12px;
+      border-radius: 2px;
     }
     .form-control:focus {
-      outline: 1px solid var(--accent);
-      border-color: var(--accent);
+      outline: 1px solid var(--accent-blue);
+      border-color: var(--accent-blue);
     }
     .btn {
-      background-color: var(--accent);
+      background-color: var(--accent-blue);
       color: #ffffff;
       border: 1px solid #1d4ed8;
-      padding: 6px 12px;
+      padding: 8px 14px;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       width: 100%;
       text-align: center;
+      border-radius: 2px;
+      margin-top: 4px;
     }
     .btn:hover {
       background-color: var(--accent-hover);
     }
     .btn-danger {
       background-color: #991b1b;
-      border-color: #7f1d1d;
+      border: 1px solid #7f1d1d;
       color: #fef2f2;
-      padding: 3px 8px;
+      padding: 4px 10px;
       font-size: 11px;
       width: auto;
+      cursor: pointer;
+      border-radius: 2px;
+      font-family: var(--font-mono);
     }
     .btn-danger:hover {
       background-color: #b91c1c;
     }
-    .node-block {
-      border: 1px solid var(--border-color);
-      background-color: var(--bg-subtle);
-      padding: 12px;
-      margin-bottom: 12px;
+    .node-card {
+      border: 1px solid var(--border-subtle);
+      background-color: var(--bg-surface);
+      padding: 14px;
+      margin-bottom: 14px;
+      border-radius: 2px;
     }
-    .node-title {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 6px;
+    .node-card:last-child {
+      margin-bottom: 0;
+    }
+    .node-row-top {
       display: flex;
       justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .node-id-label {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+    }
+    .node-row-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 11px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      border-radius: 2px;
+    }
+    .badge-online {
+      background-color: var(--status-bg);
+      color: #34d399;
+      border: 1px solid var(--status-border);
+    }
+    .badge-kvm {
+      background-color: #064e3b;
+      color: #34d399;
+      border: 1px solid #059669;
+    }
+    .badge-sandbox {
+      background-color: #374151;
+      color: #f59e0b;
+      border: 1px solid #b45309;
+    }
+    .badge-terminated {
+      background-color: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #475569;
+    }
+    .badge-node {
+      background-color: #1e1b4b;
+      color: #c7d2fe;
+      border: 1px solid #3730a3;
     }
     .meter-container {
-      background-color: #0b1120;
-      border: 1px solid var(--border-color);
-      height: 14px;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      height: 12px;
       width: 100%;
-      margin: 8px 0;
-      position: relative;
+      margin: 10px 0 8px 0;
+      border-radius: 2px;
+      overflow: hidden;
     }
     .meter-bar {
-      background-color: #2563eb;
+      background-color: var(--accent-blue);
       height: 100%;
       transition: width 0.4s ease;
     }
@@ -159,7 +221,16 @@
       font-size: 11px;
       color: var(--text-muted);
       font-family: var(--font-mono);
+    }
+    .node-sub-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #64748b;
+      font-family: var(--font-mono);
       margin-top: 4px;
+      border-top: 1px solid #273549;
+      padding-top: 4px;
     }
     table {
       width: 100%;
@@ -167,11 +238,11 @@
       text-align: left;
     }
     th, td {
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border-color);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
     }
     th {
-      background-color: var(--bg-subtle);
+      background-color: var(--bg-surface);
       font-size: 11px;
       text-transform: uppercase;
       color: var(--text-muted);
@@ -182,60 +253,38 @@
       font-family: var(--font-mono);
       font-size: 12px;
     }
-    .badge {
-      display: inline-block;
-      padding: 1px 6px;
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-    .badge-running {
-      background-color: #064e3b;
-      color: #a7f3d0;
-      border: 1px solid #047857;
-    }
-    .badge-terminated {
-      background-color: #1f2937;
-      color: #9ca3af;
-      border: 1px solid #374151;
-    }
-    .badge-node {
-      background-color: #1e1b4b;
-      color: #c7d2fe;
-      border: 1px solid #3730a3;
-    }
     .log-line {
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--text-muted);
-      margin-top: 8px;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
 
-  <div class="header-bar">
-    <div class="header-title">CH-Cluster Control Plane // Node &amp; VM Inventory</div>
-    <div class="header-meta">Scheduler Policy: 512MB Host Reserve | API Endpoint: :8000</div>
-  </div>
+  <header class="header-bar">
+    <h1 class="header-title">CH-Cluster Control Plane // Node &amp; VM Inventory</h1>
+    <aside class="header-meta">Scheduler Policy: 512MB Host Reserve | API Endpoint: :8000</aside>
+  </header>
 
-  <div class="main-grid">
+  <main class="main-grid">
     <!-- Left Column: Node Telemetry & Provisioning -->
     <div>
-      <div class="panel" style="margin-bottom: 16px;">
-        <div class="panel-header">Cluster Node Registry</div>
+      <section class="panel" style="margin-bottom: 20px;">
+        <header class="panel-header">Cluster Node Registry</header>
         <div class="panel-body" id="node-container">
-          <div class="log-line">Polling active nodes...</div>
+          <p class="log-line">Polling active nodes...</p>
         </div>
-      </div>
+      </section>
 
-      <div class="panel">
-        <div class="panel-header">Provision Instance Request</div>
+      <section class="panel">
+        <header class="panel-header">Provision Instance Request</header>
         <div class="panel-body">
           <form id="provision-form" onsubmit="handleProvision(event)">
             <div class="form-group">
               <label for="vm-name">Instance Name</label>
-              <input type="text" id="vm-name" class="form-control" value="guest-prod-04" required>
+              <input type="text" id="vm-name" class="form-control" value="guest-prod-01" required>
             </div>
             <div class="form-group">
               <label for="vm-vcpus">Allocated vCPUs</label>
@@ -249,15 +298,15 @@
           </form>
           <div id="action-status" class="log-line"></div>
         </div>
-      </div>
+      </section>
     </div>
 
     <!-- Right Column: MicroVMs Inventory Table -->
-    <div class="panel">
-      <div class="panel-header">
+    <section class="panel">
+      <header class="panel-header">
         <span>Active &amp; Tracked MicroVM Instances</span>
-        <span id="vm-counter" style="color: var(--text-muted);">0 total</span>
-      </div>
+        <code id="vm-counter" style="color: var(--text-muted); font-size: 11px;">0 tracked</code>
+      </header>
       <div style="overflow-x: auto;">
         <table>
           <thead>
@@ -273,15 +322,15 @@
           </thead>
           <tbody id="vm-table-body">
             <tr>
-              <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 24px;">
+              <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 32px;">
                 No microVM instances currently provisioned in cluster store.
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script>
     async function fetchClusterData() {
@@ -307,43 +356,53 @@
     function renderNodes(nodes, vms) {
       const container = document.getElementById('node-container');
       if (!nodes || nodes.length === 0) {
-        container.innerHTML = '<div class="log-line">No worker nodes currently registered via heartbeat.</div>';
+        container.innerHTML = '<p class="log-line">No worker nodes currently registered via heartbeat.</p>';
         return;
       }
 
       nodes.sort((a, b) => a.node_id.localeCompare(b.node_id));
-      
+
       container.innerHTML = nodes.map(n => {
-        // Find all RUNNING VMs assigned to this specific node
         const nodeVMs = vms.filter(v => v.node_id === n.node_id && v.status === 'RUNNING');
         const committedVMRAM = nodeVMs.reduce((acc, v) => acc + (v.memory_mb || 0), 0);
         const activeCount = nodeVMs.length;
 
-        // Base allocatable capacity per node (4096 MB allocation pool)
         const nodeCapacity = 4096;
         const hostReserve = 512;
         const maxAllocatable = nodeCapacity - hostReserve;
         
-        // Calculate dynamic percentage and headroom
         const pctUsed = Math.min(100, Math.round((committedVMRAM / maxAllocatable) * 100));
         const headroom = Math.max(0, maxAllocatable - committedVMRAM);
 
+        const isKvm = n.kvm_capable || n.runtime_driver === 'kvm';
+        const driverBadge = isKvm 
+          ? '<span class="badge badge-kvm">KVM ACCELERATED</span>'
+          : '<span class="badge badge-sandbox">SANDBOX EMULATED</span>';
+
         return `
-          <div class="node-block">
-            <div class="node-title">
-              <span>${n.node_id} (${n.host}:${n.port})</span>
-              <span style="color: var(--status-running); font-weight: normal;">ONLINE (${activeCount} active VM${activeCount === 1 ? '' : 's'})</span>
+          <div class="node-card">
+            <div class="node-row-top">
+              <div class="node-id-label">${n.node_id} <span style="font-weight: 400; color: var(--text-muted);">(${n.host}:${n.port})</span></div>
+              <div class="badge badge-online">ONLINE</div>
             </div>
+            
+            <div class="node-row-meta">
+              <div>${driverBadge}</div>
+              <div style="font-family: var(--font-mono); color: var(--text-muted);">${activeCount} active guest${activeCount === 1 ? '' : 's'}</div>
+            </div>
+
             <div class="meter-container">
               <div class="meter-bar" style="width: ${pctUsed}%;"></div>
             </div>
+
             <div class="node-stat-row">
-              <span>Committed: ${committedVMRAM} / ${maxAllocatable} MB (${pctUsed}%)</span>
-              <span>Headroom: ${headroom} MB</span>
+              <div>Committed: ${committedVMRAM} / ${maxAllocatable} MB (${pctUsed}%)</div>
+              <div>Headroom: ${headroom} MB</div>
             </div>
-            <div class="node-stat-row" style="color: #64748b; font-size: 10px; margin-top: 2px;">
-              <span>Host Reserve: ${hostReserve} MB</span>
-              <span>Pool Cap: ${nodeCapacity} MB</span>
+
+            <div class="node-sub-row">
+              <div>Host Reserve: ${hostReserve} MB</div>
+              <div>Allocation Pool: ${nodeCapacity} MB</div>
             </div>
           </div>
         `;
@@ -358,7 +417,7 @@
       if (!vms || vms.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 24px;">
+            <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 32px;">
               No microVM instances currently provisioned in cluster store.
             </td>
           </tr>
@@ -368,10 +427,10 @@
 
       tbody.innerHTML = vms.map(vm => {
         const isRunning = vm.status === 'RUNNING';
-        const badgeClass = isRunning ? 'badge-running' : 'badge-terminated';
+        const badgeClass = isRunning ? 'badge-online' : 'badge-terminated';
         const actionHtml = isRunning 
-          ? `<button class="btn btn-danger" onclick="terminateVM('${vm.vm_id}')">Terminate</button>`
-          : `<span style="color: var(--text-muted);">None</span>`;
+          ? `<button class="btn-danger" onclick="terminateVM('${vm.vm_id}')">Terminate</button>`
+          : '<span style="color: var(--text-muted);">None</span>';
 
         return `
           <tr>
@@ -438,7 +497,6 @@
       }
     }
 
-    // Initial load and 3-second live refresh cycle
     fetchClusterData();
     setInterval(fetchClusterData, 3000);
   </script>
