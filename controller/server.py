@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
     ha_task.cancel()
 
 app = FastAPI(title="TwoNodeCloudHypervisorController", lifespan=lifespan)
+scheduler_lock = asyncio.Lock()
 
 @app.post("/api/v1/nodes/heartbeat", status_code=status.HTTP_200_OK)
 async def node_heartbeat(hb: NodeHeartbeatRequest):
@@ -61,67 +62,68 @@ async def list_nodes():
 
 @app.post("/api/v1/vms", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_admin_token)])
 async def provision_vm(req: VMCreateRequest):
-    nodes = [n for n in store.get_all_nodes() if n["health_status"] == "ONLINE"]
-    if not nodes:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No healthy nodes registered in cluster."
-        )
-
-    eligible_nodes = [n for n in nodes if n["free_ram_mb"] >= req.memory_mb]
-    if not eligible_nodes:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail="Insufficient memory headroom available across cluster nodes."
-        )
-
-    selected_node = max(eligible_nodes, key=lambda n: n["free_ram_mb"])
-    vm_id = f"vm-{uuid.uuid4().hex[:8]}"
-
-    target_url = f"http://{selected_node['host']}:{selected_node['port']}"
-    spawn_payload = {
-        "vm_id": vm_id,
-        "name": req.name,
-        "vcpus": req.vcpus,
-        "memory_mb": req.memory_mb
-    }
-
-    headers = {"X-Worker-Token": WORKER_SHARED_SECRET}
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{target_url}/api/v1/vms/spawn",
-                json=spawn_payload,
-                headers=headers
+    async with scheduler_lock:
+        nodes = [n for n in store.get_all_nodes() if n["health_status"] == "ONLINE"]
+        if not nodes:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No healthy nodes registered in cluster."
             )
-            if resp.status_code != 201:
-                raise HTTPException(
-                    status_code=resp.status_code,
-                    detail=f"Worker agent failed provisioning: {resp.text}"
-                )
-            worker_data = resp.json()
-    except httpx.RequestError as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed communicating with target worker: {e}"
-        )
 
-    now = datetime.now(timezone.utc).isoformat()
-    vm_record = {
-        "vm_id": vm_id,
-        "name": req.name,
-        "vcpus": req.vcpus,
-        "memory_mb": req.memory_mb,
-        "node_id": selected_node["node_id"],
-        "status": "RUNNING",
-        "ip": worker_data.get("ip"),
-        "mac": worker_data.get("mac"),
-        "created_at": now,
-        "updated_at": now
-    }
-    store.upsert_vm(vm_record)
-    audit_log("PROVISION_VM", f"Provisioned {vm_id} on {selected_node['node_id']}")
-    return vm_record
+        eligible_nodes = [n for n in nodes if n["free_ram_mb"] >= req.memory_mb]
+        if not eligible_nodes:
+            raise HTTPException(
+                status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+                detail="Insufficient memory headroom available across cluster nodes."
+            )
+
+        selected_node = max(eligible_nodes, key=lambda n: n["free_ram_mb"])
+        vm_id = f"vm-{uuid.uuid4().hex[:8]}"
+
+        target_url = f"http://{selected_node['host']}:{selected_node['port']}"
+        spawn_payload = {
+            "vm_id": vm_id,
+            "name": req.name,
+            "vcpus": req.vcpus,
+            "memory_mb": req.memory_mb
+        }
+
+        headers = {"X-Worker-Token": WORKER_SHARED_SECRET}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{target_url}/api/v1/vms/spawn",
+                    json=spawn_payload,
+                    headers=headers
+                )
+                if resp.status_code != 201:
+                    raise HTTPException(
+                        status_code=resp.status_code,
+                        detail=f"Worker agent failed provisioning: {resp.text}"
+                    )
+                worker_data = resp.json()
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed communicating with target worker: {e}"
+            )
+
+        now = datetime.now(timezone.utc).isoformat()
+        vm_record = {
+            "vm_id": vm_id,
+            "name": req.name,
+            "vcpus": req.vcpus,
+            "memory_mb": req.memory_mb,
+            "node_id": selected_node["node_id"],
+            "status": "RUNNING",
+            "ip": worker_data.get("ip"),
+            "mac": worker_data.get("mac"),
+            "created_at": now,
+            "updated_at": now
+        }
+        store.upsert_vm(vm_record)
+        audit_log("PROVISION_VM", f"Provisioned {vm_id} on {selected_node['node_id']}")
+        return vm_record
 
 @app.get("/api/v1/vms", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_admin_token)])
 async def list_vms():

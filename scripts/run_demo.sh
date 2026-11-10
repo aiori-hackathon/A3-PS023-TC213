@@ -93,6 +93,12 @@ else
     echo -e "${RED}[FAIL] Unexpected placement on $NODE_ASSIGNED${NC}"
 fi
 
+echo -e "\n${YELLOW}[Step 4.5] Inspecting via CLI & Prometheus Telemetry${NC}"
+echo "[*] Querying live topology via chctl CLI..."
+./chctl nodes list
+echo "[*] Querying Prometheus metrics via chctl..."
+./chctl metrics | grep -E "ch_cluster_vms_total|ch_cluster_vm_vcpu_allocated"
+
 echo -e "\n${YELLOW}[Step 5] Testing Lifecycle Transitions: Stop and Restart VM${NC}"
 echo "[*] Stopping VM $VM_ID..."
 curl -s -X POST "$CONTROLLER_URL/api/v1/vms/$VM_ID/stop" -H "Authorization: Bearer $ADMIN_TOKEN" | python3 -m json.tool
