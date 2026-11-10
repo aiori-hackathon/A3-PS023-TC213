@@ -1,4 +1,5 @@
 import os
+import shutil
 import signal
 import uuid
 import asyncio
@@ -15,10 +16,14 @@ from pathlib import Path
 from worker.capabilities import probe_node_capabilities
 from worker.ch_client import CloudHypervisorClient
 from worker.security import verify_worker_token
+from worker.network import create_tap_device, destroy_tap_device, generate_mac_and_ip
+from worker.storage import create_cow_overlay, remove_cow_overlay
 
 PROJECT_ROOT = Path(os.getcwd())
 BASE_ARTIFACT_DIR = PROJECT_ROOT / "data" / "images"
+DEFAULT_FIRMWARE_PATH = str(BASE_ARTIFACT_DIR / "hypervisor-fw")
 DEFAULT_KERNEL_PATH = str(BASE_ARTIFACT_DIR / "vmlinux.bin")
+DEFAULT_QCOW2_DISK_PATH = str(BASE_ARTIFACT_DIR / "rootfs.qcow2")
 DEFAULT_DISK_PATH = str(BASE_ARTIFACT_DIR / "rootfs.raw")
 
 logger = logging.getLogger("worker_agent")
@@ -31,9 +36,8 @@ CH_BINARY = os.getenv("CH_BINARY", "cloud-hypervisor")
 WORKER_SHARED_SECRET = os.getenv("WORKER_SHARED_SECRET", "default-worker-secret")
 
 os.makedirs(SOCKET_DIR, exist_ok=True)
+os.makedirs(BASE_ARTIFACT_DIR, exist_ok=True)
 
-# Active VMs registry:
-# {vm_id: {"process": Popen, "socket_path": str, "client": CloudHypervisorClient, "config": dict, "status": str}}
 ACTIVE_VMS: Dict[str, Dict[str, Any]] = {}
 
 class SpawnVMRequest(BaseModel):
@@ -41,7 +45,7 @@ class SpawnVMRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=64)
     vcpus: int = Field(1, ge=1, le=4)
     memory_mb: int = Field(512, ge=128, le=2048)
-    kernel_path: Optional[str] = "/var/lib/cloud-hypervisor/vmlinux"
+    kernel_path: Optional[str] = None
     disk_path: Optional[str] = None
 
 def resolve_and_validate_artifacts(kernel_path: Optional[str] = None, disk_path: Optional[str] = None):
@@ -67,37 +71,34 @@ def resolve_and_validate_artifacts(kernel_path: Optional[str] = None, disk_path:
     return str(kernel), str(disk)
 
 async def reconciler_worker():
-    """Background task continuously scanning for dead processes or orphaned sockets."""
     while True:
         try:
-            # 1. Inspect registered active VMs
             for vm_id, data in list(ACTIVE_VMS.items()):
                 proc: Optional[subprocess.Popen] = data.get("process")
                 if proc is not None and proc.poll() is not None:
-                    # Process died unexpectedly
-                    logger.warning(f"Reconciler detected dead process for VM {vm_id} (exit code {proc.returncode}). Reaping.")
-                    sock = data.get("socket_path")
-                    if sock and os.path.exists(sock):
-                        try:
-                            os.remove(sock)
-                        except OSError:
-                            pass
-                    ACTIVE_VMS[vm_id]["status"] = "ERROR"
+                    if data.get("status") in ("CREATED", "RUNNING"):
+                        logger.warning(f"Reconciler: process exited unexpectedly for VM {vm_id}. Cleaning sockets & network.")
+                        sock = data.get("socket_path")
+                        if sock and os.path.exists(sock):
+                            try:
+                                os.remove(sock)
+                            except OSError:
+                                pass
+                        destroy_tap_device(vm_id)
+                        ACTIVE_VMS[vm_id]["status"] = "ERROR"
 
-            # 2. Check for stray socket files in SOCKET_DIR that have no active registry entry
             if os.path.exists(SOCKET_DIR):
                 for entry in os.listdir(SOCKET_DIR):
                     if entry.endswith(".sock"):
                         vid = entry[:-5]
                         if vid not in ACTIVE_VMS:
                             stray_sock = os.path.join(SOCKET_DIR, entry)
-                            logger.info(f"Reconciler cleaning unmanaged orphaned socket: {stray_sock}")
                             try:
                                 os.remove(stray_sock)
                             except OSError:
                                 pass
         except Exception as e:
-            logger.error(f"Reconciler loop encountered error: {e}")
+            logger.error(f"Reconciler error: {e}")
 
         await asyncio.sleep(2)
 
@@ -134,19 +135,17 @@ async def heartbeat_worker():
                     headers=headers
                 )
         except Exception as e:
-            logger.error(f"Heartbeat failed: {e}")
+            logger.error(f"Heartbeat error: {e}")
 
         await asyncio.sleep(5)
 
 def clean_all_active_vms():
-    """Teardown handler to kill process groups and unlink all sockets on worker shutdown."""
-    logger.info("Executing clean shutdown of all worker-managed microVMs.")
     for vm_id, data in list(ACTIVE_VMS.items()):
         proc: Optional[subprocess.Popen] = data.get("process")
         sock: str = data.get("socket_path", "")
+        cloned_disk: str = data.get("cloned_disk", "")
         if proc and proc.poll() is None:
             try:
-                # Terminate entire process group
                 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
                 try:
                     proc.wait(timeout=1.0)
@@ -159,6 +158,9 @@ def clean_all_active_vms():
                 os.remove(sock)
             except OSError:
                 pass
+        if cloned_disk and os.path.exists(cloned_disk) and cloned_disk not in (DEFAULT_DISK_PATH, DEFAULT_QCOW2_DISK_PATH):
+            remove_cow_overlay(cloned_disk)
+        destroy_tap_device(vm_id)
     ACTIVE_VMS.clear()
 
 @asynccontextmanager
@@ -180,56 +182,112 @@ async def create_vm(req: SpawnVMRequest):
             detail=f"VM {req.vm_id} already exists on this node."
         )
 
-    kernel_path, disk_path = resolve_and_validate_artifacts(
-        getattr(req, "kernel_path", None),
-        getattr(req, "disk_path", None)
-    )
+    boot_artifact, base_disk = resolve_and_validate_artifacts(req.kernel_path, req.disk_path)
+
+    # CoW Thin Provisioning
+    cow_base = DEFAULT_QCOW2_DISK_PATH if os.path.exists(DEFAULT_QCOW2_DISK_PATH) else base_disk
+    if cow_base.endswith(".qcow2") and os.path.exists(cow_base):
+        vm_disk = os.path.join(SOCKET_DIR, f"{req.vm_id}_overlay.qcow2")
+        cow_ok = create_cow_overlay(cow_base, vm_disk)
+        if not cow_ok:
+            vm_disk = base_disk
+    elif os.path.exists(base_disk) and os.path.getsize(base_disk) > 0:
+        vm_disk = os.path.join(SOCKET_DIR, f"{req.vm_id}_rootfs.raw")
+        try:
+            shutil.copyfile(base_disk, vm_disk)
+        except OSError:
+            vm_disk = base_disk
+    else:
+        vm_disk = base_disk
 
     socket_path = os.path.join(SOCKET_DIR, f"{req.vm_id}.sock")
+    console_log = os.path.join(SOCKET_DIR, f"{req.vm_id}_console.log")
     if os.path.exists(socket_path):
         try:
             os.remove(socket_path)
         except OSError:
             pass
 
-    cmd = [CH_BINARY, f"--api-socket={socket_path}"]
-    try:
-        # Launch with new process group (preexec_fn=os.setpgrp) to prevent zombie processes
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            preexec_fn=os.setpgrp
-        )
-    except FileNotFoundError:
-        logger.warning(f"{CH_BINARY} not found on host. Simulating process creation.")
-        proc = None
+    # Provision dedicated TAP interface and deterministic MAC/IP
+    tap_name = create_tap_device(req.vm_id)
+    mac_addr, ip_addr = generate_mac_and_ip(req.vm_id)
+
+    caps = probe_node_capabilities()
+    proc = None
+
+    if caps["kvm_capable"] and shutil.which(CH_BINARY):
+        cmd = [
+            CH_BINARY,
+            f"--api-socket={socket_path}",
+            "--seccomp", "false",
+            "--console", "off",
+            "--serial", "off"
+        ]
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setpgrp
+            )
+        except Exception as e:
+            logger.warning(f"Native cloud-hypervisor spawn failed: {e}. Using fallback simulation.")
+            proc = None
 
     client = CloudHypervisorClient(socket_path=socket_path)
 
-    for _ in range(30):
-        if os.path.exists(socket_path) and client.ping():
-            break
-        await asyncio.sleep(0.1)
+    if proc is not None:
+        for _ in range(40):
+            if os.path.exists(socket_path) and client.ping():
+                break
+            await asyncio.sleep(0.05)
+
+    if "hypervisor-fw" in os.path.basename(boot_artifact) or os.path.exists(DEFAULT_FIRMWARE_PATH):
+        payload_config = {"firmware": DEFAULT_FIRMWARE_PATH if os.path.exists(DEFAULT_FIRMWARE_PATH) else boot_artifact}
+    else:
+        payload_config = {
+            "kernel": boot_artifact,
+            "cmdline": "console=ttyS0 root=/dev/vda rw reboot=k panic=1 quiet"
+        }
+
+    net_config = []
+    if tap_name:
+        net_config.append({
+            "tap": tap_name,
+            "mac": mac_addr,
+            "ip": ip_addr,
+            "mask": "255.255.255.0"
+        })
 
     ch_config = {
         "cpus": {"boot_vcpus": req.vcpus, "max_vcpus": req.vcpus},
         "memory": {"size": req.memory_mb * 1024 * 1024},
-        "kernel": {"path": kernel_path},
-        "disks": [{"path": disk_path}] if disk_path else []
+        "payload": payload_config,
+        "disks": [{"path": vm_disk}] if os.path.exists(vm_disk) else [],
+        "net": net_config if net_config else None
     }
+
     try:
         client.create_vm(ch_config)
     except Exception as e:
-        logger.warning(f"Underlying create_vm call non-fatal/mocked: {e}")
+        logger.warning(f"CH create_vm call falling back to simulation: {e}")
 
     config_data = req.model_dump()
-    config_data["kernel_path"] = kernel_path
-    config_data["disk_path"] = disk_path
+    config_data["kernel_path"] = boot_artifact
+    config_data["disk_path"] = vm_disk
+    config_data["ip"] = ip_addr
+    config_data["mac"] = mac_addr
+    config_data["tap"] = tap_name
 
     ACTIVE_VMS[req.vm_id] = {
         "process": proc,
         "socket_path": socket_path,
+        "cloned_disk": vm_disk,
+        "console_log": console_log,
+        "tap_device": tap_name,
+        "ip": ip_addr,
+        "mac": mac_addr,
         "client": client,
         "config": config_data,
         "status": "CREATED"
@@ -239,8 +297,11 @@ async def create_vm(req: SpawnVMRequest):
         "vm_id": req.vm_id,
         "socket_path": socket_path,
         "status": "CREATED",
-        "kernel_path": kernel_path,
-        "disk_path": disk_path
+        "ip": ip_addr,
+        "mac": mac_addr,
+        "tap": tap_name,
+        "kernel_path": boot_artifact,
+        "disk_path": vm_disk
     }
 
 @app.post("/api/v1/vms/{vm_id}/start", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_worker_token)])
@@ -254,11 +315,72 @@ async def start_vm(vm_id: str):
     if current_status not in ("CREATED", "STOPPED"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Cannot start VM from state {current_status}.")
 
-    client: CloudHypervisorClient = ACTIVE_VMS[vm_id]["client"]
+    vm_data = ACTIVE_VMS[vm_id]
+    client: CloudHypervisorClient = vm_data["client"]
+    socket_path = vm_data["socket_path"]
+    proc = vm_data.get("process")
+
+    if not os.path.exists(socket_path) or (proc is not None and proc.poll() is not None):
+        caps = probe_node_capabilities()
+        if caps["kvm_capable"] and shutil.which(CH_BINARY):
+            cmd = [
+                CH_BINARY,
+                f"--api-socket={socket_path}",
+                "--seccomp", "false",
+                "--console", "off",
+                "--serial", "off"
+            ]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    preexec_fn=os.setpgrp
+                )
+                vm_data["process"] = proc
+                for _ in range(40):
+                    if os.path.exists(socket_path) and client.ping():
+                        break
+                    await asyncio.sleep(0.05)
+            except Exception as e:
+                logger.warning(f"Failed to restart VMM process: {e}")
+
+        cfg = vm_data["config"]
+        boot_artifact = cfg["kernel_path"]
+        if "hypervisor-fw" in os.path.basename(boot_artifact) or os.path.exists(DEFAULT_FIRMWARE_PATH):
+            payload_config = {"firmware": DEFAULT_FIRMWARE_PATH if os.path.exists(DEFAULT_FIRMWARE_PATH) else boot_artifact}
+        else:
+            payload_config = {
+                "kernel": boot_artifact,
+                "cmdline": "console=ttyS0 root=/dev/vda rw reboot=k panic=1 quiet"
+            }
+
+        net_config = []
+        if vm_data.get("tap_device"):
+            net_config.append({
+                "tap": vm_data["tap_device"],
+                "mac": vm_data["mac"],
+                "ip": vm_data["ip"],
+                "mask": "255.255.255.0"
+            })
+
+        ch_config = {
+            "cpus": {"boot_vcpus": cfg.get("vcpus", 1), "max_vcpus": cfg.get("vcpus", 1)},
+            "memory": {"size": cfg.get("memory_mb", 512) * 1024 * 1024},
+            "payload": payload_config,
+            "disks": [{"path": vm_data["cloned_disk"]}] if os.path.exists(vm_data["cloned_disk"]) else [],
+            "net": net_config if net_config else None
+        }
+        try:
+            client.create_vm(ch_config)
+        except Exception as e:
+            logger.warning(f"CH recreate_vm on restart fallback: {e}")
+
     try:
         client.boot_vm()
     except Exception as e:
-        logger.warning(f"boot_vm simulated/mock fallback: {e}")
+        logger.warning(f"boot_vm fallback: {e}")
 
     ACTIVE_VMS[vm_id]["status"] = "RUNNING"
     return {"vm_id": vm_id, "status": "RUNNING"}
@@ -278,7 +400,7 @@ async def stop_vm(vm_id: str):
     try:
         client.shutdown_vm()
     except Exception as e:
-        logger.warning(f"shutdown_vm simulated/mock fallback: {e}")
+        logger.warning(f"shutdown_vm fallback: {e}")
 
     ACTIVE_VMS[vm_id]["status"] = "STOPPED"
     return {"vm_id": vm_id, "status": "STOPPED"}
@@ -291,6 +413,9 @@ async def spawn_vm(req: SpawnVMRequest):
         "vm_id": req.vm_id,
         "socket_path": create_res["socket_path"],
         "status": "RUNNING",
+        "ip": create_res.get("ip"),
+        "mac": create_res.get("mac"),
+        "tap": create_res.get("tap"),
         "kernel_path": create_res["kernel_path"],
         "disk_path": create_res["disk_path"]
     }
@@ -328,21 +453,34 @@ async def terminate_vm(vm_id: str):
     except Exception:
         pass
 
-    if proc and proc.poll() is None:
+    if proc is not None:
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            if proc.poll() is None:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             try:
                 proc.wait(timeout=2.0)
             except subprocess.TimeoutExpired:
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                proc.wait(timeout=1.0)
         except (ProcessLookupError, PermissionError):
             pass
+
+    try:
+        subprocess.run(["pkill", "-9", "-f", vm_data["socket_path"]], stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
 
     if os.path.exists(vm_data["socket_path"]):
         try:
             os.remove(vm_data["socket_path"])
         except OSError:
             pass
+
+    cloned_disk = vm_data.get("cloned_disk")
+    if cloned_disk and os.path.exists(cloned_disk) and cloned_disk not in (DEFAULT_DISK_PATH, DEFAULT_QCOW2_DISK_PATH):
+        remove_cow_overlay(cloned_disk)
+
+    destroy_tap_device(vm_id)
 
     del ACTIVE_VMS[vm_id]
     return {"vm_id": vm_id, "status": "TERMINATED", "state": "DELETED"}

@@ -23,22 +23,23 @@ def check_cpu_virtualization() -> bool:
 
 def check_cloud_hypervisor_binary() -> bool:
     """Checks if the cloud-hypervisor executable is present in PATH."""
-    return shutil.which("cloud-hypervisor") is not None
+    ch_binary = os.getenv("CH_BINARY", "cloud-hypervisor")
+    return shutil.which(ch_binary) is not None
 
 def probe_node_capabilities() -> Dict[str, Any]:
     """
     Returns the node virtualization profile.
-    Decides between 'kvm' and 'sandbox' runtime driver.
+    Decides between 'kvm' and 'mock_sandbox' runtime driver.
     """
     kvm_avail = check_kvm_support()
     cpu_virt = check_cpu_virtualization()
     ch_bin = check_cloud_hypervisor_binary()
 
-    # Hardware acceleration requires /dev/kvm and the binary
+    # Hardware acceleration requires /dev/kvm access and the hypervisor binary
     is_accelerated = kvm_avail and ch_bin
 
     return {
-        "kvm_capable": kvm_avail,
+        "kvm_capable": is_accelerated,
         "cpu_virtualization": cpu_virt,
         "ch_binary_found": ch_bin,
         "runtime_driver": "kvm" if is_accelerated else "mock_sandbox"

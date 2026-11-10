@@ -8,3 +8,11 @@ __pycache__/
 /sockets/
 .pytest_cache/
 *.db
+*.log
+# Ephemeral runtime & binary artifacts
+data/*.db*
+data/*.qcow2
+data/images/*.qcow2
+data/images/*.bin
+data/images/vmlinux*
+data/images/hypervisor-fw

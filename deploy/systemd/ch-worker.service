@@ -1,0 +1,18 @@
+[Unit]
+Description=Cloud Hypervisor Worker Agent Daemon
+After=network.target ch-controller.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/soham/A3-PS023-TC213
+Environment="CONTROLLER_URL=http://127.0.0.1:8000"
+Environment="WORKER_SHARED_SECRET=default-worker-secret"
+Environment="NODE_ID=worker-node-local"
+ExecStart=/home/soham/A3-PS023-TC213/.venv/bin/python3 -m uvicorn worker.agent:app --host 0.0.0.0 --port 8001
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

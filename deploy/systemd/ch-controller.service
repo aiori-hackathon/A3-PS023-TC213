@@ -1,0 +1,17 @@
+[Unit]
+Description=Cloud Hypervisor Orchestrator Controller
+After=network.target
+
+[Service]
+Type=simple
+User=soham
+WorkingDirectory=/home/soham/A3-PS023-TC213
+Environment="CONTROLLER_API_KEY=default-admin-token"
+Environment="WORKER_SHARED_SECRET=default-worker-secret"
+Environment="CONTROLLER_DB_PATH=/home/soham/A3-PS023-TC213/data/cluster_state.db"
+ExecStart=/home/soham/A3-PS023-TC213/.venv/bin/python3 -m uvicorn controller.server:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

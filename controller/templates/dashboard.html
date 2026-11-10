@@ -11,14 +11,15 @@
       padding: 0;
     }
     :root {
-      --bg-canvas: #0b0f19;
-      --bg-panel: #111827;
+      --bg-canvas: #090d16;
+      --bg-panel: #0f172a;
       --bg-surface: #1e293b;
-      --bg-input: #0f172a;
+      --bg-input: #0b1120;
       --border-subtle: #334155;
       --border-strong: #475569;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
+      --text-dim: #64748b;
       --status-online: #10b981;
       --status-bg: #064e3b;
       --status-border: #059669;
@@ -44,44 +45,57 @@
       margin-bottom: 24px;
     }
     .header-title {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
       letter-spacing: 0.5px;
       text-transform: uppercase;
       color: var(--text-main);
     }
-    .header-meta {
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .token-input {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
       font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--text-muted);
+      font-size: 11px;
+      padding: 4px 8px;
+      width: 220px;
+      border-radius: 2px;
     }
     .main-grid {
       display: grid;
-      grid-template-columns: 440px 1fr;
-      gap: 24px;
+      grid-template-columns: 420px 1fr;
+      gap: 20px;
     }
     .panel {
       background-color: var(--bg-panel);
       border: 1px solid var(--border-subtle);
       border-radius: 2px;
+      margin-bottom: 20px;
     }
     .panel-header {
       background-color: var(--bg-surface);
       border-bottom: 1px solid var(--border-subtle);
       padding: 10px 14px;
       font-weight: 600;
-      font-size: 12px;
+      font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
     }
     .panel-body {
-      padding: 16px;
+      padding: 14px;
     }
     .form-group {
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
     .form-group label {
       display: block;
@@ -89,7 +103,7 @@
       font-weight: 500;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       font-family: var(--font-mono);
     }
     .form-control {
@@ -97,7 +111,7 @@
       background-color: var(--bg-input);
       border: 1px solid var(--border-subtle);
       color: var(--text-main);
-      padding: 8px 10px;
+      padding: 6px 10px;
       font-family: var(--font-mono);
       font-size: 12px;
       border-radius: 2px;
@@ -110,37 +124,52 @@
       background-color: var(--accent-blue);
       color: #ffffff;
       border: 1px solid #1d4ed8;
-      padding: 8px 14px;
+      padding: 6px 12px;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       width: 100%;
       text-align: center;
       border-radius: 2px;
-      margin-top: 4px;
+      font-family: var(--font-mono);
     }
     .btn:hover {
       background-color: var(--accent-hover);
     }
-    .btn-danger {
-      background-color: #991b1b;
-      border: 1px solid #7f1d1d;
-      color: #fef2f2;
-      padding: 4px 10px;
+    .btn-action {
+      padding: 3px 8px;
       font-size: 11px;
-      width: auto;
+      font-family: var(--font-mono);
       cursor: pointer;
       border-radius: 2px;
-      font-family: var(--font-mono);
+      border: 1px solid transparent;
+      background: var(--bg-surface);
+      color: var(--text-main);
+      margin-right: 4px;
     }
-    .btn-danger:hover {
-      background-color: #b91c1c;
+    .btn-action:hover {
+      border-color: var(--border-strong);
+    }
+    .btn-action-start {
+      color: #34d399;
+      border-color: #059669;
+      background: #064e3b;
+    }
+    .btn-action-stop {
+      color: #fbbf24;
+      border-color: #b45309;
+      background: #451a03;
+    }
+    .btn-action-delete {
+      color: #f87171;
+      border-color: #be123c;
+      background: #4c0519;
     }
     .node-card {
       border: 1px solid var(--border-subtle);
       background-color: var(--bg-surface);
-      padding: 14px;
-      margin-bottom: 14px;
+      padding: 12px;
+      margin-bottom: 12px;
       border-radius: 2px;
     }
     .node-card:last-child {
@@ -150,80 +179,40 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .node-id-label {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       color: var(--text-main);
-      white-space: nowrap;
-    }
-    .node-row-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      font-size: 11px;
     }
     .badge {
       display: inline-block;
-      padding: 2px 7px;
+      padding: 2px 6px;
       font-size: 10px;
       font-weight: 600;
-      letter-spacing: 0.3px;
       text-transform: uppercase;
       font-family: var(--font-mono);
       border-radius: 2px;
     }
-    .badge-online {
-      background-color: var(--status-bg);
-      color: #34d399;
-      border: 1px solid var(--status-border);
-    }
-    .badge-degraded {
-      background-color: #451a03;
-      color: #fbbf24;
-      border: 1px solid #b45309;
-    }
-    .badge-offline {
-      background-color: #4c0519;
-      color: #f87171;
-      border: 1px solid #be123c;
-    }
-    .badge-kvm {
-      background-color: #064e3b;
-      color: #34d399;
-      border: 1px solid #059669;
-    }
-    .badge-sandbox {
-      background-color: #374151;
-      color: #f59e0b;
-      border: 1px solid #b45309;
-    }
-    .badge-terminated {
-      background-color: #1e293b;
-      color: #94a3b8;
-      border: 1px solid #475569;
-    }
-    .badge-node {
-      background-color: #1e1b4b;
-      color: #c7d2fe;
-      border: 1px solid #3730a3;
-    }
+    .badge-online { background-color: #064e3b; color: #34d399; border: 1px solid #059669; }
+    .badge-offline { background-color: #4c0519; color: #f87171; border: 1px solid #be123c; }
+    .badge-running { background-color: #064e3b; color: #34d399; border: 1px solid #059669; }
+    .badge-stopped { background-color: #1e293b; color: #94a3b8; border: 1px solid #475569; }
     .meter-container {
       background-color: var(--bg-input);
       border: 1px solid var(--border-subtle);
-      height: 12px;
+      height: 10px;
       width: 100%;
-      margin: 10px 0 8px 0;
+      margin: 8px 0;
       border-radius: 2px;
       overflow: hidden;
     }
     .meter-bar {
       background-color: var(--accent-blue);
       height: 100%;
-      transition: width 0.4s ease;
+      transition: width 0.3s ease;
     }
     .node-stat-row {
       display: flex;
@@ -232,23 +221,13 @@
       color: var(--text-muted);
       font-family: var(--font-mono);
     }
-    .node-sub-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      color: #64748b;
-      font-family: var(--font-mono);
-      margin-top: 4px;
-      border-top: 1px solid #273549;
-      padding-top: 4px;
-    }
     table {
       width: 100%;
       border-collapse: collapse;
       text-align: left;
     }
     th, td {
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-bottom: 1px solid var(--border-subtle);
     }
     th {
@@ -267,87 +246,101 @@
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--text-muted);
-      margin-top: 10px;
+      margin-top: 8px;
     }
   </style>
 </head>
 <body>
 
   <header class="header-bar">
-    <h1 class="header-title">CH-Cluster Control Plane // Node &amp; VM Inventory</h1>
-    <aside class="header-meta">Scheduler Policy: 512MB Host Reserve | API Endpoint: :8000</aside>
+    <h1 class="header-title">Cloud Hypervisor Orchestrator // Cluster Control Console</h1>
+    <div class="header-controls">
+      <label for="admin-token" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">API Token:</label>
+      <input type="password" id="admin-token" class="token-input" placeholder="Bearer Token" value="default-admin-token">
+    </div>
   </header>
 
   <main class="main-grid">
-    <!-- Left Column: Node Telemetry & Provisioning -->
+    <!-- Left Column: Cluster Topology & Placement Form -->
     <div>
-      <section class="panel" style="margin-bottom: 20px;">
-        <header class="panel-header">Cluster Node Registry</header>
+      <section class="panel">
+        <header class="panel-header">Worker Node Registry</header>
         <div class="panel-body" id="node-container">
           <p class="log-line">Polling active nodes...</p>
         </div>
       </section>
 
       <section class="panel">
-        <header class="panel-header">Provision Instance Request</header>
+        <header class="panel-header">Provision MicroVM Instance</header>
         <div class="panel-body">
           <form id="provision-form" onsubmit="handleProvision(event)">
             <div class="form-group">
-              <label for="vm-name">Instance Name</label>
+              <label for="vm-name">Workload Name</label>
               <input type="text" id="vm-name" class="form-control" value="guest-prod-01" required>
             </div>
             <div class="form-group">
-              <label for="vm-vcpus">Allocated vCPUs</label>
-              <input type="number" id="vm-vcpus" class="form-control" value="1" min="1" max="16" required>
+              <label for="vm-vcpus">vCPUs (1-4)</label>
+              <input type="number" id="vm-vcpus" class="form-control" value="2" min="1" max="4" required>
             </div>
             <div class="form-group">
-              <label for="vm-ram">Allocated Memory (MB)</label>
-              <input type="number" id="vm-ram" class="form-control" value="1024" min="128" step="128" required>
+              <label for="vm-ram">Allocated RAM (MB)</label>
+              <input type="number" id="vm-ram" class="form-control" value="1024" min="128" max="2048" step="128" required>
             </div>
-            <button type="submit" class="btn" id="btn-submit">Dispatch to Scheduler</button>
+            <button type="submit" class="btn" id="btn-submit">Dispatch Provision Request</button>
           </form>
           <div id="action-status" class="log-line"></div>
         </div>
       </section>
     </div>
 
-    <!-- Right Column: MicroVMs Inventory Table -->
-    <section class="panel">
-      <header class="panel-header">
-        <span>Active &amp; Tracked MicroVM Instances</span>
-        <code id="vm-counter" style="color: var(--text-muted); font-size: 11px;">0 tracked</code>
-      </header>
-      <div style="overflow-x: auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>VM ID</th>
-              <th>Name</th>
-              <th>Node Placement</th>
-              <th>vCPUs</th>
-              <th>RAM</th>
-              <th>State</th>
-              <th>Operations</th>
-            </tr>
-          </thead>
-          <tbody id="vm-table-body">
-            <tr>
-              <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 32px;">
-                No microVM instances currently provisioned in cluster store.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <!-- Right Column: Instances & Telemetry -->
+    <div>
+      <section class="panel">
+        <header class="panel-header">
+          <span>Active MicroVM Instances</span>
+          <span id="vm-counter">0 tracked</span>
+        </header>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Instance</th>
+                <th>Placement</th>
+                <th>Network (IP / MAC)</th>
+                <th>vCPUs</th>
+                <th>RAM</th>
+                <th>State</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="vm-table-body">
+              <tr>
+                <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 24px;">
+                  No microVMs registered in cluster state.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script>
+    function getAuthHeaders() {
+      const token = document.getElementById('admin-token').value.trim();
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+    }
+
     async function fetchClusterData() {
       try {
+        const headers = getAuthHeaders();
         const [nodesRes, vmsRes] = await Promise.all([
-          fetch('/api/v1/nodes'),
-          fetch('/api/v1/vms')
+          fetch('/api/v1/nodes', { headers }),
+          fetch('/api/v1/vms', { headers })
         ]);
 
         let nodes = [];
@@ -356,68 +349,43 @@
         if (nodesRes.ok) nodes = await nodesRes.json();
         if (vmsRes.ok) vms = await vmsRes.json();
 
-        renderNodes(nodes, vms);
+        renderNodes(nodes);
         renderVMs(vms);
       } catch (err) {
-        console.error('Cluster polling error:', err);
+        console.error('Telemetry polling error:', err);
       }
     }
 
-    function renderNodes(nodes, vms) {
+    function renderNodes(nodes) {
       const container = document.getElementById('node-container');
       if (!nodes || nodes.length === 0) {
-        container.innerHTML = '<p class="log-line">No worker nodes currently registered via heartbeat.</p>';
+        container.innerHTML = '<p class="log-line">No worker nodes currently registered.</p>';
         return;
       }
 
       nodes.sort((a, b) => a.node_id.localeCompare(b.node_id));
 
       container.innerHTML = nodes.map(n => {
-        const nodeVMs = vms.filter(v => v.node_id === n.node_id && v.status === 'RUNNING');
-        const committedVMRAM = nodeVMs.reduce((acc, v) => acc + (v.memory_mb || 0), 0);
-        const activeCount = nodeVMs.length;
+        const total = n.total_ram_mb || 4096;
+        const free = n.free_ram_mb !== undefined ? n.free_ram_mb : total;
+        const used = Math.max(0, total - free);
+        const pctUsed = Math.min(100, Math.round((used / total) * 100));
 
-        const status = n.health_status || 'ONLINE';
-        let statusBadgeClass = 'badge-online';
-        if (status === 'DEGRADED') statusBadgeClass = 'badge-degraded';
-        else if (status === 'OFFLINE') statusBadgeClass = 'badge-offline';
-
-        const nodeCapacity = 4096;
-        const hostReserve = 512;
-        const maxAllocatable = nodeCapacity - hostReserve;
-        
-        const pctUsed = Math.min(100, Math.round((committedVMRAM / maxAllocatable) * 100));
-        const headroom = Math.max(0, maxAllocatable - committedVMRAM);
-
-        const isKvm = n.kvm_capable || n.runtime_driver === 'kvm';
-        const driverBadge = isKvm 
-          ? '<span class="badge badge-kvm">KVM ACCELERATED</span>'
-          : '<span class="badge badge-sandbox">SANDBOX EMULATED</span>';
+        const isOnline = n.health_status === 'ONLINE';
+        const badgeClass = isOnline ? 'badge-online' : 'badge-offline';
 
         return `
           <div class="node-card">
             <div class="node-row-top">
-              <div class="node-id-label">${n.node_id} <span style="font-weight: 400; color: var(--text-muted);">(${n.host}:${n.port})</span></div>
-              <div class="badge ${statusBadgeClass}">${status}</div>
+              <span class="node-id-label">${n.node_id} (${n.host}:${n.port})</span>
+              <span class="badge ${badgeClass}">${n.health_status}</span>
             </div>
-            
-            <div class="node-row-meta">
-              <div>${driverBadge}</div>
-              <div style="font-family: var(--font-mono); color: var(--text-muted);">${activeCount} active guest${activeCount === 1 ? '' : 's'}</div>
-            </div>
-
             <div class="meter-container">
               <div class="meter-bar" style="width: ${pctUsed}%;"></div>
             </div>
-
             <div class="node-stat-row">
-              <div>Committed: ${committedVMRAM} / ${maxAllocatable} MB (${pctUsed}%)</div>
-              <div>Headroom: ${headroom} MB</div>
-            </div>
-
-            <div class="node-sub-row">
-              <div>Host Reserve: ${hostReserve} MB</div>
-              <div>Allocation Pool: ${nodeCapacity} MB</div>
+              <span>RAM: ${used} / ${total} MB (${pctUsed}%)</span>
+              <span>Headroom: ${free} MB</span>
             </div>
           </div>
         `;
@@ -432,8 +400,8 @@
       if (!vms || vms.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 32px;">
-              No microVM instances currently provisioned in cluster store.
+            <td colspan="7" style="color: var(--text-muted); text-align: center; padding: 24px;">
+              No microVM instances currently provisioned.
             </td>
           </tr>
         `;
@@ -442,20 +410,30 @@
 
       tbody.innerHTML = vms.map(vm => {
         const isRunning = vm.status === 'RUNNING';
-        const badgeClass = isRunning ? 'badge-online' : 'badge-terminated';
-        const actionHtml = isRunning 
-          ? `<button class="btn-danger" onclick="terminateVM('${vm.vm_id}')">Terminate</button>`
-          : '<span style="color: var(--text-muted);">None</span>';
+        const isStopped = vm.status === 'STOPPED';
+        const badgeClass = isRunning ? 'badge-running' : 'badge-stopped';
+
+        const startBtn = isStopped 
+          ? `<button class="btn-action btn-action-start" onclick="vmAction('${vm.vm_id}', 'start')">Start</button>` 
+          : '';
+        const stopBtn = isRunning 
+          ? `<button class="btn-action btn-action-stop" onclick="vmAction('${vm.vm_id}', 'stop')">Stop</button>` 
+          : '';
+        const delBtn = `<button class="btn-action btn-action-delete" onclick="vmAction('${vm.vm_id}', 'delete')">Delete</button>`;
+
+        const networkMeta = vm.ip 
+          ? `<div>${vm.ip}</div><div style="font-size: 10px; color: var(--text-dim);">${vm.mac || 'N/A'}</div>`
+          : '<span style="color: var(--text-dim);">Unassigned</span>';
 
         return `
           <tr>
-            <td><strong>${vm.vm_id}</strong></td>
-            <td>${vm.name}</td>
-            <td><span class="badge badge-node">${vm.node_id || 'unassigned'}</span></td>
+            <td><strong>${vm.vm_id}</strong><div style="color: var(--text-dim); font-size: 11px;">${vm.name}</div></td>
+            <td>${vm.node_id || 'unassigned'}</td>
+            <td>${networkMeta}</td>
             <td>${vm.vcpus}</td>
             <td>${vm.memory_mb} MB</td>
             <td><span class="badge ${badgeClass}">${vm.status}</span></td>
-            <td>${actionHtml}</td>
+            <td>${startBtn}${stopBtn}${delBtn}</td>
           </tr>
         `;
       }).join('');
@@ -478,7 +456,7 @@
       try {
         const res = await fetch('/api/v1/vms', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify(payload)
         });
 
@@ -497,18 +475,22 @@
       }
     }
 
-    async function terminateVM(vmId) {
-      if (!confirm(`Confirm teardown of microVM instance ${vmId}?`)) return;
+    async function vmAction(vmId, action) {
+      if (action === 'delete' && !confirm(`Terminate and delete microVM instance ${vmId}?`)) return;
+
+      const method = action === 'delete' ? 'DELETE' : 'POST';
+      const path = action === 'delete' ? `/api/v1/vms/${vmId}` : `/api/v1/vms/${vmId}/${action}`;
+
       try {
-        const res = await fetch(`/api/v1/vms/${vmId}`, { method: 'DELETE' });
+        const res = await fetch(path, { method, headers: getAuthHeaders() });
         if (res.ok) {
           fetchClusterData();
         } else {
           const err = await res.json();
-          alert(`Termination failed: ${err.detail || res.statusText}`);
+          alert(`Operation failed: ${err.detail || res.statusText}`);
         }
       } catch (err) {
-        alert(`Teardown network error: ${err.message}`);
+        alert(`Action communication error: ${err.message}`);
       }
     }
 
