@@ -212,13 +212,14 @@ async def create_vm(req: SpawnVMRequest):
             break
         await asyncio.sleep(0.1)
 
+    ch_config = {
+        "cpus": {"boot_vcpus": req.vcpus, "max_vcpus": req.vcpus},
+        "memory": {"size": req.memory_mb * 1024 * 1024},
+        "kernel": {"path": kernel_path},
+        "disks": [{"path": disk_path}] if disk_path else []
+    }
     try:
-        client.create_vm(
-            vcpus=req.vcpus,
-            memory_mb=req.memory_mb,
-            kernel_path=kernel_path,
-            disk_path=disk_path
-        )
+        client.create_vm(ch_config)
     except Exception as e:
         logger.warning(f"Underlying create_vm call non-fatal/mocked: {e}")
 

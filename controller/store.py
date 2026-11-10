@@ -96,6 +96,23 @@ class MetadataStore:
                 for row in rows
             ]
 
+    def get_node(self, node_id: str) -> Optional[NodeRecord]:
+        with self._get_conn() as conn:
+            row = conn.execute("SELECT * FROM nodes WHERE node_id = ?", (node_id,)).fetchone()
+            if not row:
+                return None
+            return NodeRecord(
+                node_id=row["node_id"],
+                host=row["host"],
+                port=row["port"],
+                total_ram_mb=row["total_ram_mb"],
+                free_ram_mb=row["free_ram_mb"],
+                last_heartbeat=datetime.fromisoformat(row["last_heartbeat"]),
+                is_active=bool(row["is_active"]),
+                kvm_capable=bool(row["kvm_capable"]),
+                runtime_driver=row["runtime_driver"],
+            )
+
     def insert_vm(self, vm: VMRecord) -> None:
         self._init_db()
         with self._get_conn() as conn:
