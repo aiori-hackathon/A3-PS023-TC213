@@ -1,13 +1,13 @@
+import os
 import sqlite3
 from datetime import datetime, timezone
 from typing import List, Optional
 from controller.models import NodeHeartbeat, NodeRecord, VMRecord
 
-DB_PATH = "controller.db"
-
+DEFAULT_DB_PATH = os.getenv("CH_DB_PATH", "controller.db")
 class MetadataStore:
-    def __init__(self, db_path: str = DB_PATH):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = db_path or os.getenv("CH_DB_PATH", DEFAULT_DB_PATH)
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:

@@ -34,9 +34,8 @@ def cluster_services():
     w1_port = find_free_port()
     w2_port = find_free_port()
 
-    # Clear stale database
-    if os.path.exists("controller.db"):
-        os.remove("controller.db")
+    test_db = "test_multinode.db"
+    store.db_path = test_db
     store._init_db()
 
     c_server = ServerThread(controller_app, c_port)
@@ -58,8 +57,11 @@ def cluster_services():
     c_server.stop()
     w1_server.stop()
     w2_server.stop()
-    if os.path.exists("controller.db"):
-        os.remove("controller.db")
+    if os.path.exists(test_db):
+        try:
+            os.remove(test_db)
+        except OSError:
+            pass
 
 def test_two_node_dynamic_provisioning_and_placement(cluster_services):
     c_url = cluster_services["controller_url"]
