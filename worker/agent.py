@@ -1,4 +1,5 @@
 import os
+import signal
 import uuid
 import asyncio
 import logging
@@ -31,6 +32,8 @@ WORKER_SHARED_SECRET = os.getenv("WORKER_SHARED_SECRET", "default-worker-secret"
 
 os.makedirs(SOCKET_DIR, exist_ok=True)
 
+# Active VMs registry:
+# {vm_id: {"process": Popen, "socket_path": str, "client": CloudHypervisorClient, "config": dict, "status": str}}
 ACTIVE_VMS: Dict[str, Dict[str, Any]] = {}
 
 class SpawnVMRequest(BaseModel):
@@ -62,6 +65,41 @@ def resolve_and_validate_artifacts(kernel_path: Optional[str] = None, disk_path:
                 disk = str(fallback_file)
 
     return str(kernel), str(disk)
+
+async def reconciler_worker():
+    """Background task continuously scanning for dead processes or orphaned sockets."""
+    while True:
+        try:
+            # 1. Inspect registered active VMs
+            for vm_id, data in list(ACTIVE_VMS.items()):
+                proc: Optional[subprocess.Popen] = data.get("process")
+                if proc is not None and proc.poll() is not None:
+                    # Process died unexpectedly
+                    logger.warning(f"Reconciler detected dead process for VM {vm_id} (exit code {proc.returncode}). Reaping.")
+                    sock = data.get("socket_path")
+                    if sock and os.path.exists(sock):
+                        try:
+                            os.remove(sock)
+                        except OSError:
+                            pass
+                    ACTIVE_VMS[vm_id]["status"] = "ERROR"
+
+            # 2. Check for stray socket files in SOCKET_DIR that have no active registry entry
+            if os.path.exists(SOCKET_DIR):
+                for entry in os.listdir(SOCKET_DIR):
+                    if entry.endswith(".sock"):
+                        vid = entry[:-5]
+                        if vid not in ACTIVE_VMS:
+                            stray_sock = os.path.join(SOCKET_DIR, entry)
+                            logger.info(f"Reconciler cleaning unmanaged orphaned socket: {stray_sock}")
+                            try:
+                                os.remove(stray_sock)
+                            except OSError:
+                                pass
+        except Exception as e:
+            logger.error(f"Reconciler loop encountered error: {e}")
+
+        await asyncio.sleep(2)
 
 async def heartbeat_worker():
     while True:
@@ -100,11 +138,37 @@ async def heartbeat_worker():
 
         await asyncio.sleep(5)
 
+def clean_all_active_vms():
+    """Teardown handler to kill process groups and unlink all sockets on worker shutdown."""
+    logger.info("Executing clean shutdown of all worker-managed microVMs.")
+    for vm_id, data in list(ACTIVE_VMS.items()):
+        proc: Optional[subprocess.Popen] = data.get("process")
+        sock: str = data.get("socket_path", "")
+        if proc and proc.poll() is None:
+            try:
+                # Terminate entire process group
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        if sock and os.path.exists(sock):
+            try:
+                os.remove(sock)
+            except OSError:
+                pass
+    ACTIVE_VMS.clear()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     heartbeat_task = asyncio.create_task(heartbeat_worker())
+    reconciler_task = asyncio.create_task(reconciler_worker())
     yield
     heartbeat_task.cancel()
+    reconciler_task.cancel()
+    clean_all_active_vms()
 
 app = FastAPI(title="TwoNodeWorkerAgent", lifespan=lifespan)
 
@@ -130,10 +194,12 @@ async def create_vm(req: SpawnVMRequest):
 
     cmd = [CH_BINARY, f"--api-socket={socket_path}"]
     try:
+        # Launch with new process group (preexec_fn=os.setpgrp) to prevent zombie processes
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            preexec_fn=os.setpgrp
         )
     except FileNotFoundError:
         logger.warning(f"{CH_BINARY} not found on host. Simulating process creation.")
@@ -262,11 +328,14 @@ async def terminate_vm(vm_id: str):
         pass
 
     if proc and proc.poll() is None:
-        proc.terminate()
         try:
-            proc.wait(timeout=2.0)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            try:
+                proc.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
 
     if os.path.exists(vm_data["socket_path"]):
         try:

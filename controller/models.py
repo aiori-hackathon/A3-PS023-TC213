@@ -39,9 +39,9 @@ class NodeRecord(BaseModel):
         return "OFFLINE"
 
 class VMCreateRequest(BaseModel):
-    name: str
-    vcpus: int
-    memory_mb: int
+    name: str = Field(..., min_length=1, max_length=64, description="Human-readable VM name")
+    vcpus: int = Field(..., ge=1, le=4, description="vCPU count restricted between 1 and 4")
+    memory_mb: int = Field(..., ge=128, le=2048, description="Memory restricted between 128MB and 2048MB")
     kernel_path: Optional[str] = None
     disk_path: Optional[str] = None
 class VMState(str, Enum):
