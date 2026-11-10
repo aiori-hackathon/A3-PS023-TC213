@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from typing import Optional
-from pydantic import BaseModel, computed_field
-
+from enum import Enum
+from typing import Optional, Set
+from pydantic import BaseModel, Field, computed_field
 class NodeHeartbeat(BaseModel):
     node_id: str
     host: str = "127.0.0.1"
@@ -44,6 +44,31 @@ class VMCreateRequest(BaseModel):
     memory_mb: int
     kernel_path: Optional[str] = None
     disk_path: Optional[str] = None
+class VMState(str, Enum):
+    CREATING = "CREATING"
+    CREATED = "CREATED"
+    RUNNING = "RUNNING"
+    STOPPED = "STOPPED"
+    DELETED = "DELETED"
+    ERROR = "ERROR"
+
+# Explicit directed graph of allowed lifecycle transitions
+LEGAL_TRANSITIONS: dict[VMState, Set[VMState]] = {
+    VMState.CREATING: {VMState.CREATED, VMState.ERROR},
+    VMState.CREATED: {VMState.RUNNING, VMState.DELETED, VMState.ERROR},
+    VMState.RUNNING: {VMState.STOPPED, VMState.DELETED, VMState.ERROR},
+    VMState.STOPPED: {VMState.RUNNING, VMState.DELETED, VMState.ERROR},
+    VMState.ERROR: {VMState.DELETED},
+    VMState.DELETED: set(),
+}
+
+def validate_transition(current: str, target: str) -> bool:
+    try:
+        curr_enum = VMState(current)
+        targ_enum = VMState(target)
+        return targ_enum in LEGAL_TRANSITIONS.get(curr_enum, set())
+    except ValueError:
+        return False
 
 class VMRecord(BaseModel):
     vm_id: str
@@ -51,6 +76,6 @@ class VMRecord(BaseModel):
     vcpus: int
     memory_mb: int
     node_id: Optional[str] = None
-    status: str
+    status: str = VMState.CREATING.value
     created_at: datetime
     updated_at: datetime

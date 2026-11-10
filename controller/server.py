@@ -95,6 +95,58 @@ async def get_vm_status(vm_id: str):
         raise HTTPException(status_code=404, detail="VM not found")
     return vm
 
+@app.post("/api/v1/vms/{vm_id}/start", status_code=status.HTTP_200_OK)
+async def start_vm(vm_id: str):
+    vm = store.get_vm(vm_id)
+    if not vm:
+        raise HTTPException(status_code=404, detail="VM not found.")
+
+    if vm.status == "RUNNING":
+        raise HTTPException(status_code=409, detail=f"VM {vm_id} is already RUNNING.")
+    if vm.status not in ("CREATED", "STOPPED"):
+        raise HTTPException(status_code=409, detail=f"Cannot start VM from state {vm.status}.")
+
+    node = store.get_node(vm.node_id) if vm.node_id else None
+    if not node:
+        raise HTTPException(status_code=502, detail="Assigned worker node unavailable.")
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.post(f"http://{node.host}:{node.port}/api/v1/vms/{vm_id}/start")
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=502, detail=f"Failed to communicate with worker: {e}")
+
+    store.update_vm_status(vm_id, "RUNNING")
+    return {"vm_id": vm_id, "status": "RUNNING"}
+
+@app.post("/api/v1/vms/{vm_id}/stop", status_code=status.HTTP_200_OK)
+async def stop_vm(vm_id: str):
+    vm = store.get_vm(vm_id)
+    if not vm:
+        raise HTTPException(status_code=404, detail="VM not found.")
+
+    if vm.status == "STOPPED":
+        raise HTTPException(status_code=409, detail=f"VM {vm_id} is already STOPPED.")
+    if vm.status != "RUNNING":
+        raise HTTPException(status_code=409, detail=f"Cannot stop VM from state {vm.status}.")
+
+    node = store.get_node(vm.node_id) if vm.node_id else None
+    if not node:
+        raise HTTPException(status_code=502, detail="Assigned worker node unavailable.")
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.post(f"http://{node.host}:{node.port}/api/v1/vms/{vm_id}/stop")
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=502, detail=f"Failed to communicate with worker: {e}")
+
+    store.update_vm_status(vm_id, "STOPPED")
+    return {"vm_id": vm_id, "status": "STOPPED"}
+
 @app.delete("/api/v1/vms/{vm_id}", status_code=status.HTTP_200_OK)
 async def delete_vm(vm_id: str):
     vm = store.get_vm(vm_id)
