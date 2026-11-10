@@ -181,6 +181,16 @@
       color: #34d399;
       border: 1px solid var(--status-border);
     }
+    .badge-degraded {
+      background-color: #451a03;
+      color: #fbbf24;
+      border: 1px solid #b45309;
+    }
+    .badge-offline {
+      background-color: #4c0519;
+      color: #f87171;
+      border: 1px solid #be123c;
+    }
     .badge-kvm {
       background-color: #064e3b;
       color: #34d399;
@@ -367,6 +377,11 @@
         const committedVMRAM = nodeVMs.reduce((acc, v) => acc + (v.memory_mb || 0), 0);
         const activeCount = nodeVMs.length;
 
+        const status = n.health_status || 'ONLINE';
+        let statusBadgeClass = 'badge-online';
+        if (status === 'DEGRADED') statusBadgeClass = 'badge-degraded';
+        else if (status === 'OFFLINE') statusBadgeClass = 'badge-offline';
+
         const nodeCapacity = 4096;
         const hostReserve = 512;
         const maxAllocatable = nodeCapacity - hostReserve;
@@ -383,7 +398,7 @@
           <div class="node-card">
             <div class="node-row-top">
               <div class="node-id-label">${n.node_id} <span style="font-weight: 400; color: var(--text-muted);">(${n.host}:${n.port})</span></div>
-              <div class="badge badge-online">ONLINE</div>
+              <div class="badge ${statusBadgeClass}">${status}</div>
             </div>
             
             <div class="node-row-meta">

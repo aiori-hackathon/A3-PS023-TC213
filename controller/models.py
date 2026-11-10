@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 class NodeHeartbeat(BaseModel):
     node_id: str
@@ -21,6 +21,22 @@ class NodeRecord(BaseModel):
     is_active: bool = True
     kvm_capable: bool = False
     runtime_driver: str = "mock_sandbox"
+
+    @computed_field
+    @property
+    def health_status(self) -> str:
+        """Determines health based on heartbeat age."""
+        now = datetime.now(timezone.utc)
+        # Handle naive vs aware datetimes safely
+        hb = self.last_heartbeat
+        if hb.tzinfo is None:
+            hb = hb.replace(tzinfo=timezone.utc)
+        age = (now - hb).total_seconds()
+        if age <= 10.0:
+            return "ONLINE"
+        elif age <= 20.0:
+            return "DEGRADED"
+        return "OFFLINE"
 
 class VMCreateRequest(BaseModel):
     name: str
