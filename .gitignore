@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache/
 *.db
 *.log
+*.prom
 # Ephemeral runtime & binary artifacts
 data/*.db*
 data/*.qcow2
