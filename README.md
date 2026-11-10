@@ -38,7 +38,7 @@ Watch our introductory walkthrough explaining our team roles, problem breakdown,
 
 ## Orientation Slide Deck
 The 11-slide presentation adhering to the official AIORI template is included in this repository:
-- Presentation Path: /A3-PS023-TC213_AIORI3_Presentation.pdf
+- Presentation Path: /docs/A3-PS023-TC213_AIORI3_Presentation.pdf
 
 ---
 
