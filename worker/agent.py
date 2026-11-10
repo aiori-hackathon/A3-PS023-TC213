@@ -5,14 +5,15 @@ import logging
 import subprocess
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, List
-from fastapi import FastAPI, HTTPException, status
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, status, Depends
+from pydantic import BaseModel, Field
 import psutil
 import httpx
 from pathlib import Path
 
 from worker.capabilities import probe_node_capabilities
 from worker.ch_client import CloudHypervisorClient
+from worker.security import verify_worker_token
 
 PROJECT_ROOT = Path(os.getcwd())
 BASE_ARTIFACT_DIR = PROJECT_ROOT / "data" / "images"
@@ -26,18 +27,17 @@ NODE_ID = os.getenv("NODE_ID", "node-1")
 CONTROLLER_URL = os.getenv("CONTROLLER_URL", "http://localhost:8000")
 SOCKET_DIR = os.getenv("SOCKET_DIR", "/tmp/ch_sockets")
 CH_BINARY = os.getenv("CH_BINARY", "cloud-hypervisor")
+WORKER_SHARED_SECRET = os.getenv("WORKER_SHARED_SECRET", "default-worker-secret")
 
 os.makedirs(SOCKET_DIR, exist_ok=True)
 
-# Active VMs registry:
-# {vm_id: {"process": Popen, "socket_path": str, "client": CloudHypervisorClient, "config": dict, "status": str}}
 ACTIVE_VMS: Dict[str, Dict[str, Any]] = {}
 
 class SpawnVMRequest(BaseModel):
     vm_id: str
-    name: str
-    vcpus: int = 1
-    memory_mb: int = 512
+    name: str = Field(..., min_length=1, max_length=64)
+    vcpus: int = Field(1, ge=1, le=4)
+    memory_mb: int = Field(512, ge=128, le=2048)
     kernel_path: Optional[str] = "/var/lib/cloud-hypervisor/vmlinux"
     disk_path: Optional[str] = None
 
@@ -64,14 +64,12 @@ def resolve_and_validate_artifacts(kernel_path: Optional[str] = None, disk_path:
     return str(kernel), str(disk)
 
 async def heartbeat_worker():
-    """Background task reporting node health every 5 seconds to the Controller."""
     while True:
         try:
             mem = psutil.virtual_memory()
             total_ram = int(mem.total / (1024 * 1024))
             base_free_ram = int(mem.available / (1024 * 1024))
 
-            # Count committed RAM for active non-terminated VMs
             committed_vm_ram = sum(
                 int(vm.get("config", {}).get("memory_mb", 0))
                 for vm in ACTIVE_VMS.values()
@@ -79,7 +77,6 @@ async def heartbeat_worker():
             )
 
             effective_free_ram = max(0, base_free_ram - committed_vm_ram)
-
             caps = probe_node_capabilities()
             payload = {
                 "node_id": NODE_ID,
@@ -91,11 +88,13 @@ async def heartbeat_worker():
                 "runtime_driver": caps["runtime_driver"],
             }
 
+            headers = {"X-Worker-Token": WORKER_SHARED_SECRET}
             async with httpx.AsyncClient(timeout=3.0) as client:
                 await client.post(
-                    f"{CONTROLLER_URL}/api/v1/nodes/heartbeat", json=payload
+                    f"{CONTROLLER_URL}/api/v1/nodes/heartbeat",
+                    json=payload,
+                    headers=headers
                 )
-
         except Exception as e:
             logger.error(f"Heartbeat failed: {e}")
 
@@ -109,12 +108,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TwoNodeWorkerAgent", lifespan=lifespan)
 
-@app.post("/api/v1/vms/create", status_code=status.HTTP_201_CREATED)
+@app.post("/api/v1/vms/create", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_worker_token)])
 async def create_vm(req: SpawnVMRequest):
-    """
-    Initializes socket and hypervisor process, creates VM configuration,
-    and transitions VM state to CREATED.
-    """
     if req.vm_id in ACTIVE_VMS:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -181,23 +176,16 @@ async def create_vm(req: SpawnVMRequest):
         "disk_path": disk_path
     }
 
-@app.post("/api/v1/vms/{vm_id}/start", status_code=status.HTTP_200_OK)
+@app.post("/api/v1/vms/{vm_id}/start", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_worker_token)])
 async def start_vm(vm_id: str):
-    """Transitions VM from CREATED or STOPPED to RUNNING."""
     if vm_id not in ACTIVE_VMS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VM not found.")
 
     current_status = ACTIVE_VMS[vm_id]["status"]
     if current_status == "RUNNING":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"VM {vm_id} is already RUNNING."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"VM {vm_id} is already RUNNING.")
     if current_status not in ("CREATED", "STOPPED"):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot start VM {vm_id} from state {current_status}."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Cannot start VM from state {current_status}.")
 
     client: CloudHypervisorClient = ACTIVE_VMS[vm_id]["client"]
     try:
@@ -208,23 +196,16 @@ async def start_vm(vm_id: str):
     ACTIVE_VMS[vm_id]["status"] = "RUNNING"
     return {"vm_id": vm_id, "status": "RUNNING"}
 
-@app.post("/api/v1/vms/{vm_id}/stop", status_code=status.HTTP_200_OK)
+@app.post("/api/v1/vms/{vm_id}/stop", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_worker_token)])
 async def stop_vm(vm_id: str):
-    """Gracefully halts a RUNNING VM and transitions it to STOPPED."""
     if vm_id not in ACTIVE_VMS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VM not found.")
 
     current_status = ACTIVE_VMS[vm_id]["status"]
     if current_status == "STOPPED":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"VM {vm_id} is already STOPPED."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"VM {vm_id} is already STOPPED.")
     if current_status != "RUNNING":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot stop VM {vm_id} from state {current_status}."
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Cannot stop VM from state {current_status}.")
 
     client: CloudHypervisorClient = ACTIVE_VMS[vm_id]["client"]
     try:
@@ -235,9 +216,8 @@ async def stop_vm(vm_id: str):
     ACTIVE_VMS[vm_id]["status"] = "STOPPED"
     return {"vm_id": vm_id, "status": "STOPPED"}
 
-@app.post("/api/v1/vms/spawn", status_code=status.HTTP_201_CREATED)
+@app.post("/api/v1/vms/spawn", status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_worker_token)])
 async def spawn_vm(req: SpawnVMRequest):
-    """Composite endpoint for legacy integration tests: create and immediately boot."""
     create_res = await create_vm(req)
     await start_vm(req.vm_id)
     return {
@@ -248,33 +228,22 @@ async def spawn_vm(req: SpawnVMRequest):
         "disk_path": create_res["disk_path"]
     }
 
-@app.get("/api/v1/vms", status_code=status.HTTP_200_OK)
+@app.get("/api/v1/vms", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_worker_token)])
 async def list_node_vms():
-    """Lists all registered microVMs on this worker node."""
     return [
-        {
-            "vm_id": vid,
-            "status": v["status"],
-            "config": v["config"]
-        }
+        {"vm_id": vid, "status": v["status"], "config": v["config"]}
         for vid, v in ACTIVE_VMS.items()
     ]
 
-@app.get("/api/v1/vms/{vm_id}", status_code=status.HTTP_200_OK)
+@app.get("/api/v1/vms/{vm_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_worker_token)])
 async def get_node_vm(vm_id: str):
-    """Retrieves status and configuration of a specific microVM."""
     if vm_id not in ACTIVE_VMS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VM not found.")
     v = ACTIVE_VMS[vm_id]
-    return {
-        "vm_id": vm_id,
-        "status": v["status"],
-        "config": v["config"]
-    }
+    return {"vm_id": vm_id, "status": v["status"], "config": v["config"]}
 
-@app.delete("/api/v1/vms/{vm_id}", status_code=status.HTTP_200_OK)
+@app.delete("/api/v1/vms/{vm_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(verify_worker_token)])
 async def terminate_vm(vm_id: str):
-    """Shuts down hypervisor process, unlinks socket files, and marks instance DELETED."""
     if vm_id not in ACTIVE_VMS:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VM not found on this node.")
 

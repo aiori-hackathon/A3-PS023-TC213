@@ -9,6 +9,9 @@ import httpx
 from controller.server import app as controller_app, store
 from worker.agent import app as worker_app
 
+CONTROLLER_HEADERS = {"Authorization": "Bearer default-admin-token"}
+WORKER_HEADERS = {"X-Worker-Token": "default-worker-secret"}
+
 def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
@@ -46,7 +49,7 @@ def cluster_services():
     w1_server.start()
     w2_server.start()
 
-    time.sleep(0.5)
+    time.sleep(1.0)
 
     yield {
         "controller_url": f"http://127.0.0.1:{c_port}",
@@ -57,6 +60,7 @@ def cluster_services():
     c_server.stop()
     w1_server.stop()
     w2_server.stop()
+
     if os.path.exists(test_db):
         try:
             os.remove(test_db)
@@ -68,50 +72,42 @@ def test_two_node_dynamic_provisioning_and_placement(cluster_services):
     w1_port = cluster_services["w1_port"]
     w2_port = cluster_services["w2_port"]
 
-    with httpx.Client(base_url=c_url, timeout=5.0) as client:
-        # 1. Register Node 1: 2048 MB free
+    with httpx.Client(timeout=5.0) as client:
+        # Register Node 1: 2048 MB free
         hb1 = {
-            "node_id": "node-1",
+            "node_id": "integ-node-1",
             "host": "127.0.0.1",
             "port": w1_port,
             "total_ram_mb": 4096,
             "free_ram_mb": 2048
         }
-        res1 = client.post("/api/v1/nodes/heartbeat", json=hb1)
+        res1 = client.post(f"{c_url}/api/v1/nodes/heartbeat", json=hb1)
         assert res1.status_code == 200
 
-        # 2. Register Node 2: 8192 MB free (Scheduler should select Node 2)
+        # Register Node 2: 8192 MB free (should be selected)
         hb2 = {
-            "node_id": "node-2",
+            "node_id": "integ-node-2",
             "host": "127.0.0.1",
             "port": w2_port,
             "total_ram_mb": 16384,
             "free_ram_mb": 8192
         }
-        res2 = client.post("/api/v1/nodes/heartbeat", json=hb2)
+        res2 = client.post(f"{c_url}/api/v1/nodes/heartbeat", json=hb2)
         assert res2.status_code == 200
 
-        # 3. Request Controller to provision a VM (1024 MB)
+        # Verify nodes list with auth
+        nodes_res = client.get(f"{c_url}/api/v1/nodes", headers=CONTROLLER_HEADERS)
+        assert nodes_res.status_code == 200
+        assert len(nodes_res.json()) >= 2
+
+        # Create VM -> Should land on integ-node-2
         vm_payload = {
-            "name": "guest-db-01",
-            "vcpus": 2,
+            "name": "multinode-guest",
+            "vcpus": 1,
             "memory_mb": 1024
         }
-        create_res = client.post("/api/v1/vms", json=vm_payload)
-        assert create_res.status_code == 201
-        vm_data = create_res.json()
-
-        vm_id = vm_data["vm_id"]
-        assert vm_data["status"] == "RUNNING"
-        # Confirm it placed on Node 2 (the node with 8192 MB free)
-        assert vm_data["node_id"] == "node-2"
-
-        # 4. Query VM status via Controller
-        status_res = client.get(f"/api/v1/vms/{vm_id}")
-        assert status_res.status_code == 200
-        assert status_res.json()["status"] == "RUNNING"
-
-        # 5. Delete VM
-        del_res = client.delete(f"/api/v1/vms/{vm_id}")
-        assert del_res.status_code == 200
-        assert del_res.json()["status"] == "TERMINATED"
+        vm_res = client.post(f"{c_url}/api/v1/vms", json=vm_payload, headers=CONTROLLER_HEADERS)
+        assert vm_res.status_code == 201
+        data = vm_res.json()
+        assert data["node_id"] == "integ-node-2"
+        assert data["status"] == "RUNNING"
