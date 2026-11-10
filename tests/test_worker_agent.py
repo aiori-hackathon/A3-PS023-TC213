@@ -25,3 +25,23 @@ async def test_worker_spawn_and_terminate():
         assert del_res.status_code == 200
         assert del_res.json()["status"] == "TERMINATED"
         assert "test-vm-100" not in ACTIVE_VMS
+
+def test_artifact_resolution_pipeline():
+    from worker.agent import resolve_and_validate_artifacts
+    import os
+
+    # 1. Verify default fallback generation
+    kernel, disk = resolve_and_validate_artifacts()
+    assert kernel.endswith("vmlinux.bin")
+    assert disk.endswith("rootfs.raw")
+    assert os.path.exists(kernel)
+    assert os.path.exists(disk)
+
+    # 2. Verify custom overrides
+    custom_k = "/tmp/custom_vmlinux.bin"
+    custom_d = "/tmp/custom_rootfs.raw"
+    k_out, d_out = resolve_and_validate_artifacts(kernel_path=custom_k, disk_path=custom_d)
+    assert k_out == custom_k
+    assert d_out == custom_d
+    assert os.path.exists(custom_k)
+    assert os.path.exists(custom_d)

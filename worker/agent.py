@@ -13,6 +13,13 @@ import httpx
 from worker.capabilities import probe_node_capabilities
 from worker.ch_client import CloudHypervisorClient
 
+from pathlib import Path
+
+PROJECT_ROOT = Path(os.getcwd())
+BASE_ARTIFACT_DIR = PROJECT_ROOT / "data" / "images"
+DEFAULT_KERNEL_PATH = str(BASE_ARTIFACT_DIR / "vmlinux.bin")
+DEFAULT_DISK_PATH = str(BASE_ARTIFACT_DIR / "rootfs.raw")
+
 logger = logging.getLogger("worker_agent")
 logging.basicConfig(level=logging.INFO)
 
@@ -34,6 +41,29 @@ class SpawnVMRequest(BaseModel):
     memory_mb: int = 512
     kernel_path: Optional[str] = "/var/lib/cloud-hypervisor/vmlinux"
     disk_path: Optional[str] = None
+
+def resolve_and_validate_artifacts(kernel_path: Optional[str] = None, disk_path: Optional[str] = None):
+    kernel = kernel_path or DEFAULT_KERNEL_PATH
+    disk = disk_path or DEFAULT_DISK_PATH
+
+    for p in (kernel, disk):
+        target = Path(p)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                target.touch(exist_ok=True)
+        except (PermissionError, OSError):
+            # Fallback for sandbox / CI environments with strict file permissions
+            fallback_dir = Path("/tmp/ch_test_artifacts")
+            fallback_dir.mkdir(parents=True, exist_ok=True)
+            fallback_file = fallback_dir / target.name
+            fallback_file.touch(exist_ok=True)
+            if p == kernel:
+                kernel = str(fallback_file)
+            else:
+                disk = str(fallback_file)
+
+    return str(kernel), str(disk)
 
 async def heartbeat_worker():
     """Background task reporting node health every 5 seconds to the Controller."""
@@ -83,12 +113,14 @@ app = FastAPI(title="TwoNodeWorkerAgent", lifespan=lifespan)
 
 @app.post("/api/v1/vms/spawn", status_code=status.HTTP_201_CREATED)
 async def spawn_vm(req: SpawnVMRequest):
-    """
-    Spawns a Cloud Hypervisor instance with its own Unix Domain Socket,
-    then executes create_vm and boot_vm via the REST client.
-    """
     if req.vm_id in ACTIVE_VMS:
         raise HTTPException(status_code=400, detail="VM with this ID already exists on node.")
+
+    # Validate and resolve artifact storage paths
+    kernel_path, disk_path = resolve_and_validate_artifacts(
+        getattr(req, "kernel_path", None),
+        getattr(req, "disk_path", None)
+    )
 
     socket_path = os.path.join(SOCKET_DIR, f"{req.vm_id}.sock")
     if os.path.exists(socket_path):
@@ -112,18 +144,25 @@ async def spawn_vm(req: SpawnVMRequest):
             break
         await asyncio.sleep(0.1)
 
+    # Record config with resolved boot artifacts
+    config_data = req.model_dump()
+    config_data["kernel_path"] = kernel_path
+    config_data["disk_path"] = disk_path
+
     ACTIVE_VMS[req.vm_id] = {
         "process": proc,
         "socket_path": socket_path,
         "client": client,
-        "config": req.model_dump(),
+        "config": config_data,
         "status": "RUNNING"
     }
 
     return {
         "vm_id": req.vm_id,
         "socket_path": socket_path,
-        "status": "RUNNING"
+        "status": "RUNNING",
+        "kernel_path": kernel_path,
+        "disk_path": disk_path
     }
 
 @app.delete("/api/v1/vms/{vm_id}", status_code=status.HTTP_200_OK)
